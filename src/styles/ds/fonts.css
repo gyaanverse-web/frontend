@@ -1,0 +1,13 @@
+/* ── Gyanverse · Webfonts ─────────────────────────────────────────────
+   Loaded from Google Fonts CDN. SUBSTITUTIONS (no brand binaries given):
+   - Headings: Space Grotesk (stand-in for General Sans / Satoshi / Aeonik)
+   - Emphasis serif italic: Instrument Serif (matches live site closely)
+   - Body: Inter (as specified by brand)
+   Replace with licensed @font-face binaries when provided.
+
+   NOTE: In the Next app the Google Fonts @import is hoisted to the top of
+   src/app/globals.css so it precedes Tailwind (CSS requires @import to come
+   before other rules). Left commented here as documentation for the
+   standalone DS bundle. */
+
+/* @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap'); */

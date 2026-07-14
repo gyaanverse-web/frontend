@@ -1,0 +1,80 @@
+/* Gyanverse marketing homepage — layout + responsive breakpoints only.
+   All colour / type / component styling comes from the DS (.gv-* + tokens);
+   this file owns the grids so they can collapse gracefully on smaller screens. */
+
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Center nav links — hidden on narrow screens where they'd crowd the CTA. */
+.navLinks {
+  display: flex;
+  gap: 28px;
+}
+@media (max-width: 860px) {
+  .navLinks {
+    display: none;
+  }
+}
+
+/* ── Hero + AI section: editorial two-column split ── */
+.split {
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 72px;
+  align-items: center;
+}
+
+/* ── Marketing card rows ── */
+.cards3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.plans {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 20px;
+  align-items: stretch;
+}
+
+/* ── Section vertical rhythm (~112px brand spacing) ── */
+.section {
+  padding: 110px 40px;
+}
+.sectionTight {
+  padding: 88px 40px;
+}
+
+/* ── Tablet ── */
+@media (max-width: 1000px) {
+  .plans {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .split {
+    grid-template-columns: 1fr;
+    gap: 48px;
+  }
+  .cards3 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Phone ── */
+@media (max-width: 560px) {
+  .plans {
+    grid-template-columns: 1fr;
+  }
+  .section {
+    padding: 72px 22px;
+  }
+  .sectionTight {
+    padding: 60px 22px;
+  }
+}

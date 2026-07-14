@@ -1,0 +1,99 @@
+/* ── Gyanverse · Color tokens ─────────────────────────────────────────
+   Source: live site gyaanverse.com (screenshots, June 2026).
+   Two-theme system: light near-white sections alternating with deep-navy
+   dark sections. One electric royal-blue accent. */
+
+:root {
+  /* Base palette */
+  --blue-600: #2B50F5;            /* electric blue — links, eyebrows, emphasis, CTAs */
+  --blue-700: #1a4db8;            /* pressed / dashboard primary buttons */
+  --blue-500: #4a6cf7;            /* hover on dark */
+  --blue-100: #e3e9fe;            /* eyebrow chip fill, soft tints */
+  --blue-50:  #eef2ff;
+
+  --ink-900: #0B1020;             /* near-black — headings on light, dark pill buttons */
+  --navy-900: #0C1326;            /* deep navy — dark section background */
+  --navy-800: #111a33;            /* dark card surface */
+  --navy-700: #18233f;            /* dark inset / nested panel */
+
+  --paper-0:  #FFFFFF;
+  --paper-50: #FBFCFF;            /* light page background (faint lavender-blue tint) */
+  --paper-100:#F4F6FC;            /* subtle section / table-stripe fill */
+
+  --slate-600: #5A6B85;           /* body / muted text on light */
+  --slate-400: #8b97ad;           /* placeholder, tertiary */
+  --slate-200: #c6cedd;
+
+  --green-500: #10B981;           /* success / EVALUATED */
+  --red-500:   #F43F5E;           /* danger / exact-mistake */
+  --amber-500: #F59E0B;           /* warning / pending */
+
+  /* Borders */
+  --border-light: #E5E8F0;
+  --border-dark: rgba(255, 255, 255, 0.10);
+
+  /* ── Semantic aliases — light theme (default) ── */
+  --bg-page: var(--paper-50);
+  --bg-section-alt: var(--paper-100);
+  --surface-card: var(--paper-0);
+  --surface-inset: var(--paper-100);
+
+  --text-heading: var(--ink-900);
+  --text-body: var(--slate-600);
+  --text-muted: var(--slate-400);
+  --text-accent: var(--blue-600);
+  --text-on-accent: #ffffff;
+  --text-on-dark: #eef1f8;
+  --text-body-on-dark: #aeb8cc;
+
+  --border-default: var(--border-light);
+
+  --accent: var(--blue-600);
+  --accent-hover: #1f41d6;
+  --accent-soft: var(--blue-100);
+
+  --btn-primary-bg: var(--ink-900);     /* dark pill on light surfaces */
+  --btn-primary-bg-hover: #1b2340;
+  --btn-app-primary-bg: var(--blue-700);/* dashboard primary */
+  --btn-app-primary-bg-hover: #163f99;
+
+  --success: var(--green-500);
+  --success-soft: rgba(16, 185, 129, 0.12);
+  --danger: var(--red-500);
+  --danger-soft: rgba(244, 63, 94, 0.10);
+  --warning: var(--amber-500);
+  --warning-soft: rgba(245, 158, 11, 0.12);
+
+  /* Role badges */
+  --role-superadmin: #7c2d12;
+  --role-owner: var(--blue-600);
+  --role-teacher: var(--green-500);
+  --role-student: var(--slate-600);
+
+  /* Focus ring */
+  --focus-ring: 0 0 0 3px rgba(43, 80, 245, 0.25);
+}
+
+/* ── Dark theme scope — apply .theme-dark to any section/card ── */
+.theme-dark {
+  --bg-page: var(--navy-900);
+  --bg-section-alt: var(--navy-800);
+  --surface-card: var(--navy-800);
+  --surface-inset: var(--navy-700);
+
+  --text-heading: #f3f5fb;
+  --text-body: #aeb8cc;
+  --text-muted: #6d7a94;
+  --text-accent: #6f8bff;
+
+  --border-default: rgba(255, 255, 255, 0.10);
+
+  --accent-soft: rgba(43, 80, 245, 0.18);
+
+  --btn-primary-bg: var(--blue-600);
+  --btn-primary-bg-hover: #1f41d6;
+
+  --success-soft: rgba(16, 185, 129, 0.14);
+  --danger-soft: rgba(244, 63, 94, 0.12);
+  --warning-soft: rgba(245, 158, 11, 0.14);
+}

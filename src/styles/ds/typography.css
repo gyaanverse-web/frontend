@@ -1,0 +1,36 @@
+/* ── Gyanverse · Typography tokens ────────────────────────────────────
+   Headings: bold modern grotesk (live site uses a General Sans/Satoshi-
+   class face — Space Grotesk is the closest Google Fonts match; FLAGGED
+   as a substitution).
+   Emphasis word: editorial serif italic — Instrument Serif italic.
+   Body: Inter. */
+
+:root {
+  --font-sans: 'Space Grotesk', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-serif-display: 'Instrument Serif', 'Playfair Display', Georgia, serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* Scale */
+  --text-display: clamp(44px, 6vw, 84px);  /* hero headline */
+  --text-h1: 44px;
+  --text-h2: 32px;
+  --text-h3: 22px;
+  --text-h4: 17px;
+  --text-body-lg: 18px;
+  --text-body-md: 15px;
+  --text-body-sm: 13px;
+  --text-eyebrow: 12px;
+  --text-micro: 11px;
+
+  /* Weights */
+  --weight-heading: 700;
+  --weight-medium: 500;
+  --weight-body: 400;
+
+  /* Tracking & leading */
+  --tracking-heading: -0.03em;   /* tight, heavy grotesk */
+  --tracking-eyebrow: 0.14em;    /* wide uppercase eyebrows */
+  --leading-heading: 1.05;
+  --leading-body: 1.65;
+}

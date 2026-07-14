@@ -1,0 +1,8 @@
+/* Gyanverse design system — token + component layer.
+   Ported verbatim from screens/_ds/.../tokens. Import this one file. */
+@import './fonts.css';
+@import './colors.css';
+@import './typography.css';
+@import './spacing.css';
+@import './base.css';
+@import './components.css';
