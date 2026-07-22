@@ -6,6 +6,7 @@ import Link from "next/link";
 import type { Exam, Tenant } from "../types";
 import { sh, cell, inp } from "../styles";
 import { Button } from "@/components/ui";
+import { StatusBadge } from "@/components/exam";
 
 type Props = { tenant: Tenant; canMembers: boolean };
 
@@ -123,17 +124,11 @@ export function ExamsSection({ tenant, canMembers }: Props) {
               </thead>
               <tbody>
                 {exams.map(exam => {
-                  const sc =
-                    exam.status === "published" ? { bg: "#dcfce7", color: "var(--success)", border: "#86efac" } :
-                    exam.status === "archived"  ? { bg: "#f3f4f6", color: "#374151", border: "#d1d5db" } :
-                                                  { bg: "#fef9c3", color: "#713f12", border: "#fde068" };
                   return (
                     <tr key={exam.id}>
                       <td style={{ ...cell, fontWeight: "500" }}>{exam.title}</td>
                       <td style={{ ...cell, textAlign: "center" }}>
-                        <span style={{ padding: "3px 10px", fontSize: "11px", fontWeight: "bold", borderRadius: "var(--radius-pill)", background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>
-                          {exam.status}
-                        </span>
+                        <StatusBadge status={exam.status} />
                       </td>
                       <td style={{ ...cell, textAlign: "right", fontSize: "12px", color: "var(--text-muted)" }}>{exam.durationMins}</td>
                       <td style={{ ...cell, textAlign: "right", fontSize: "12px", color: "var(--text-muted)" }}>{exam.totalMarks}</td>
@@ -141,7 +136,7 @@ export function ExamsSection({ tenant, canMembers }: Props) {
                         {canMembers ? (
                           <Link href={`/exams/${exam.id}`} className="gv-btn gv-btn--secondary gv-btn--sm" style={{ textDecoration: "none" }}>Manage →</Link>
                         ) : (
-                          exam.status === "published" && (
+                          exam.status === "live" && (
                             <Link href={`/exams/${exam.id}/take`} className="gv-btn gv-btn--app gv-btn--sm" style={{ textDecoration: "none" }}>Start →</Link>
                           )
                         )}

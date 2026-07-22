@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
 import { Button, Card, Badge, Icon, StatCard } from "@/components/ui";
 import { ProgressRing, ScoreTrendChart } from "./StudentBits";
@@ -8,20 +10,32 @@ import { ProgressRing, ScoreTrendChart } from "./StudentBits";
 type ShellUser = { name: string; role?: string };
 type ShellTenant = { name: string; slug: string } | null;
 
-// ── Placeholder data ──────────────────────────────────────────────────────────
-// Mirrors the approved design. TODO: wire to the student home endpoint
-// (upcoming/attempts summary) once the backend surface is confirmed.
-const DUE_SOON = [
-  { title: "Weekly Physics Test — Laws of Motion", subject: "Physics", q: 30, dur: "45 min", due: "Tomorrow, 6 PM", left: "2/3" },
-  { title: "Organic Chemistry — Nomenclature Quiz", subject: "Chemistry", q: 20, dur: "30 min", due: "Fri, 6 PM", left: "1/2" },
-  { title: "Maths — Sequences & Series", subject: "Maths", q: 25, dur: "40 min", due: "Sun, 11:59 PM", left: "3/3" },
-];
+// ── Backend contracts (listAvailableExamsForStudent / listReportsForStudent) ──
+type SessionSummary = { id: string; status: string; startedAt: string };
 
-const RECENT = [
-  { title: "Mid-Term Mock — Mechanics", score: "228/300 (76%)", pct: 76, delta: "+12%" },
-  { title: "Organic Chemistry Quiz", score: "156/200 (78%)", pct: 78, delta: "+4%" },
-  { title: "Maths Weekly Test 6", score: "162/250 (65%)", pct: 65, delta: "+2%" },
-];
+type ApiExam = {
+  id: string;
+  title: string;
+  durationMins: number;
+  status: string; // scheduled | live | under_evaluation | results_published | completed
+  totalMarks: number;
+  maxAttempts: number;
+  scheduledAt: string | null;
+  endsAt: string | null;
+  mySessions?: SessionSummary[];
+};
+
+type ReportSummary = {
+  id: string;
+  sessionId: string;
+  examId: string;
+  examTitle: string;
+  totalScore: number;
+  maxScore: number;
+  status: "pending" | "ready" | "archived";
+  publishedAt: string | null;
+  createdAt: string;
+};
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -30,9 +44,64 @@ function greeting(): string {
   return "Good evening";
 }
 
+function fmtWhen(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(iso).toLocaleString([], { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function pctOf(r: ReportSummary): number {
+  return r.maxScore > 0 ? Math.round((r.totalScore / r.maxScore) * 100) : 0;
+}
+
 export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTenant }) {
   const router = useRouter();
   const firstName = (user.name ?? "").trim().split(/\s+/)[0] || "there";
+
+  const [exams, setExams] = useState<ApiExam[]>([]);
+  const [reports, setReports] = useState<ReportSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([
+      api.get<{ exams: ApiExam[] }>("/tenant/exams").catch(() => ({ exams: [] as ApiExam[] })),
+      api.get<{ reports: ReportSummary[] }>("/reports").catch(() => ({ reports: [] as ReportSummary[] })),
+    ]).then(([e, r]) => {
+      if (cancelled) return;
+      setExams(e.exams);
+      setReports(r.reports);
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Live exam with an active session → "continue" hero card.
+  const inProgress = useMemo(
+    () => exams.find((e) => e.status === "live" && (e.mySessions ?? []).some((s) => s.status === "in_progress")),
+    [exams],
+  );
+
+  // Live (attemptable) first, then upcoming scheduled — the "due soon" rail.
+  const dueSoon = useMemo(() => {
+    const live = exams.filter(
+      (e) => e.status === "live"
+        && !(e.mySessions ?? []).some((s) => s.status === "in_progress")
+        && (e.mySessions ?? []).length < e.maxAttempts,
+    );
+    const upcoming = exams
+      .filter((e) => e.status === "scheduled")
+      .sort((a, b) => (a.scheduledAt ?? "").localeCompare(b.scheduledAt ?? ""));
+    return [...live, ...upcoming].slice(0, 6);
+  }, [exams]);
+
+  const liveCount = exams.filter((e) => e.status === "live").length;
+  const upcomingCount = exams.filter((e) => e.status === "scheduled").length;
+  const avgPct = reports.length
+    ? Math.round(reports.reduce((s, r) => s + pctOf(r), 0) / reports.length)
+    : null;
+  // ScoreTrendChart's y-axis starts at 40 — clamp so low scores stay on-chart.
+  const trend = [...reports].reverse().map((r) => Math.max(41, pctOf(r)));
+  const recent = reports.slice(0, 3);
 
   return (
     <TeacherShell tenant={tenant} user={user} active="home">
@@ -42,90 +111,134 @@ export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTe
             <h2 style={{ fontSize: 27, margin: 0 }}>
               {greeting()}, {firstName}
             </h2>
-            <Badge tone="warning">4-day streak</Badge>
+            {liveCount > 0 && <Badge tone="success">{liveCount} live now</Badge>}
           </div>
           <p style={{ fontSize: 15, margin: "2px 0 22px", color: "var(--text-body)" }}>
-            You have <strong style={{ color: "var(--text-heading)" }}>2 exams</strong> due this week.
+            {loading
+              ? "Loading your exams…"
+              : liveCount > 0
+                ? <>You have <strong style={{ color: "var(--text-heading)" }}>{liveCount} exam{liveCount !== 1 ? "s" : ""}</strong> open right now.</>
+                : upcomingCount > 0
+                  ? <><strong style={{ color: "var(--text-heading)" }}>{upcomingCount} exam{upcomingCount !== 1 ? "s" : ""}</strong> coming up — check the schedule below.</>
+                  : "No exams due right now — nice time to review your results."}
           </p>
 
           {/* ── Continue where you left off ──────────────────────────────── */}
-          <Card padding={0} style={{ marginBottom: 24, borderColor: "var(--accent)", overflow: "hidden" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 20, padding: 22, background: "var(--accent-soft)" }}>
-              <ProgressRing pct={47} size={60} label="14/30" />
-              <div style={{ flex: 1, lineHeight: 1.4 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--accent)" }}>
-                  Continue where you left off
+          {inProgress && (
+            <Card padding={0} style={{ marginBottom: 24, borderColor: "var(--accent)", overflow: "hidden" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 20, padding: 22, background: "var(--accent-soft)" }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--surface-card)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+                  <Icon name="file-text" size={22} style={{ color: "var(--accent)" }} />
                 </div>
-                <div style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 19, color: "var(--text-heading)", marginTop: 2 }}>
-                  Weekly Physics Test — Laws of Motion
+                <div style={{ flex: 1, lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--accent)" }}>
+                    Continue where you left off
+                  </div>
+                  <div style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 19, color: "var(--text-heading)", marginTop: 2 }}>
+                    {inProgress.title}
+                  </div>
+                  <div style={{ fontSize: 13.5, color: "var(--text-body)", marginTop: 2 }}>
+                    Attempt in progress{inProgress.endsAt ? ` · closes ${fmtWhen(inProgress.endsAt)}` : ""}
+                  </div>
                 </div>
-                <div style={{ fontSize: 13.5, color: "var(--text-body)", marginTop: 2 }}>14 of 30 answered · 18:42 left</div>
-              </div>
-              <Button variant="app" size="lg" arrow onClick={() => router.push("/dashboard?screen=Exams")}>
-                Resume
-              </Button>
-            </div>
-          </Card>
-
-          {/* ── Due soon ─────────────────────────────────────────────────── */}
-          <div style={{ display: "flex", alignItems: "center", marginBottom: 12 }}>
-            <h3 style={{ fontSize: 17, margin: 0 }}>Due soon</h3>
-          </div>
-          <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 4, marginBottom: 28 }}>
-            {DUE_SOON.map((e) => (
-              <Card key={e.title} padding={18} style={{ minWidth: 260, display: "flex", flexDirection: "column", gap: 10, flex: "none" }}>
-                <Badge tone="accent">{e.subject}</Badge>
-                <h4 style={{ margin: 0, fontSize: 15, lineHeight: 1.35, color: "var(--text-heading)" }}>{e.title}</h4>
-                <div style={{ fontFamily: "var(--font-body)", fontSize: 12.5, color: "var(--text-muted)", display: "flex", gap: 8 }}>
-                  <span>{e.q} Q</span>
-                  <span>·</span>
-                  <span>{e.dur}</span>
-                </div>
-                <div style={{ fontSize: 12.5, color: "var(--text-body)" }}>
-                  Due {e.due} · {e.left} attempts left
-                </div>
-                <Button variant="app" size="sm" style={{ marginTop: 4 }} onClick={() => router.push("/dashboard?screen=Exams")}>
-                  Start
+                <Button variant="app" size="lg" arrow onClick={() => router.push(`/exams/${inProgress.id}/attempt`)}>
+                  Resume
                 </Button>
-              </Card>
-            ))}
-          </div>
+              </div>
+            </Card>
+          )}
+
+          {/* ── Due soon (live + upcoming scheduled) ─────────────────────── */}
+          {dueSoon.length > 0 && (
+            <>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                <h3 style={{ fontSize: 17, margin: 0 }}>Due soon</h3>
+                <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard?screen=Exams")}>See all</Button>
+              </div>
+              <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 4, marginBottom: 28 }}>
+                {dueSoon.map((e) => {
+                  const isLive = e.status === "live";
+                  const left = Math.max(0, e.maxAttempts - (e.mySessions ?? []).length);
+                  return (
+                    <Card key={e.id} padding={18} style={{ minWidth: 260, display: "flex", flexDirection: "column", gap: 10, flex: "none" }}>
+                      <Badge tone={isLive ? "success" : "neutral"}>{isLive ? "Live now" : "Upcoming"}</Badge>
+                      <h4 style={{ margin: 0, fontSize: 15, lineHeight: 1.35, color: "var(--text-heading)" }}>{e.title}</h4>
+                      <div style={{ fontFamily: "var(--font-body)", fontSize: 12.5, color: "var(--text-muted)", display: "flex", gap: 8 }}>
+                        <span>{e.durationMins} min</span>
+                        <span>·</span>
+                        <span>{e.totalMarks} marks</span>
+                      </div>
+                      <div style={{ fontSize: 12.5, color: "var(--text-body)" }}>
+                        {isLive
+                          ? `${e.endsAt ? `Closes ${fmtWhen(e.endsAt)}` : "Open now"} · ${left}/${e.maxAttempts} attempts left`
+                          : e.scheduledAt ? `Starts ${fmtWhen(e.scheduledAt)}` : "Scheduled"}
+                      </div>
+                      <Button
+                        variant={isLive ? "app" : "secondary"}
+                        size="sm"
+                        style={{ marginTop: 4 }}
+                        disabled={!isLive}
+                        onClick={() => router.push(`/exams/${e.id}/intro`)}
+                      >
+                        {isLive ? "Start" : "Locked"}
+                      </Button>
+                    </Card>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
           {/* ── Progress chart + KPIs ────────────────────────────────────── */}
           <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1fr", gap: 24, marginBottom: 28, alignItems: "start" }}>
             <Card padding={20}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
                 <h4 style={{ margin: 0, color: "var(--text-heading)" }}>Your progress</h4>
-                <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Last 8 attempts</span>
+                <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+                  {trend.length >= 2 ? `Last ${trend.length} results` : "Awaiting results"}
+                </span>
               </div>
-              <ScoreTrendChart />
+              {trend.length >= 2 ? (
+                <ScoreTrendChart pts={trend} />
+              ) : (
+                <p style={{ margin: "18px 0", fontSize: 13.5, color: "var(--text-muted)" }}>
+                  Your score trend appears here once you have a couple of published results.
+                </p>
+              )}
             </Card>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-              <StatCard label="Exams taken" value="18" />
-              <StatCard label="Avg. score" value="72%" delta="+5%" />
-              <StatCard label="This week" value="2" sub="due" />
-              <StatCard label="Classes" value="3" />
+              <StatCard label="Results" value={String(reports.length)} />
+              <StatCard label="Avg. score" value={avgPct !== null ? `${avgPct}%` : "—"} />
+              <StatCard label="Live now" value={String(liveCount)} />
+              <StatCard label="Upcoming" value={String(upcomingCount)} />
             </div>
           </div>
 
           {/* ── Recent results ───────────────────────────────────────────── */}
-          <h3 style={{ fontSize: 17, margin: "0 0 12px" }}>Recent results</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 28 }}>
-            {RECENT.map((r) => (
-              <Card key={r.title} padding={16} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                <ProgressRing pct={r.pct} size={48} label={`${r.pct}%`} />
-                <div style={{ flex: 1, lineHeight: 1.35 }}>
-                  <div style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14.5, color: "var(--text-heading)" }}>{r.title}</div>
-                  <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
-                    {r.score} · <span style={{ color: "var(--success)", fontWeight: 600 }}>▲ {r.delta} vs last</span>
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => router.push("/reports")}>
-                  View report
-                </Button>
-              </Card>
-            ))}
-          </div>
+          {recent.length > 0 && (
+            <>
+              <h3 style={{ fontSize: 17, margin: "0 0 12px" }}>Recent results</h3>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.min(3, recent.length)}, 1fr)`, gap: 16, marginBottom: 28 }}>
+                {recent.map((r) => {
+                  const pct = pctOf(r);
+                  return (
+                    <Card key={r.id} padding={16} style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                      <ProgressRing pct={pct} size={48} label={`${pct}%`} />
+                      <div style={{ flex: 1, lineHeight: 1.35 }}>
+                        <div style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14.5, color: "var(--text-heading)" }}>{r.examTitle}</div>
+                        <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+                          {r.status === "pending" ? "AI review pending" : `${r.totalScore}/${r.maxScore} (${pct}%)`}
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => router.push(`/exams/${r.examId}/result?session=${r.sessionId}`)}>
+                        View report
+                      </Button>
+                    </Card>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
           {/* ── Marketplace promo ────────────────────────────────────────── */}
           <Card dark padding={20} style={{ display: "flex", alignItems: "center", gap: 18, border: "none" }}>

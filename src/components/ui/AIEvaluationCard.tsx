@@ -14,6 +14,8 @@ export interface AIEvaluationCardProps extends HTMLAttributes<HTMLDivElement> {
   outOf?: number;
   status?: AIEvaluationStatus;
   steps?: ScannedStep[];
+  /** Render scanned steps as raw LaTeX (KaTeX) instead of plain text. */
+  stepsAsMath?: boolean;
   mistake?: ReactNode;
   alternative?: ReactNode;
   tip?: ReactNode;
@@ -29,6 +31,7 @@ export function AIEvaluationCard({
   outOf = 10,
   status = "evaluated",
   steps = [],
+  stepsAsMath = false,
   mistake = null,
   alternative = null,
   tip = null,
@@ -83,7 +86,7 @@ export function AIEvaluationCard({
 
       <div style={{ borderTop: "1px solid var(--border-default)" }} />
 
-      {steps.length > 0 && <ScannedUpload steps={steps} />}
+      {steps.length > 0 && <ScannedUpload steps={steps} math={stepsAsMath} />}
 
       {status === "evaluating" && (
         <div

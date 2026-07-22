@@ -12,6 +12,7 @@ export type AppNavKey =
   | "home"
   | "classes"
   | "exams"
+  | "approvals"
   | "results"
   | "marketplace"
   | "account"
@@ -58,6 +59,8 @@ export function buildAppNav(role: string): NavEntry[] {
     { key: "classes", label: isOwner ? "Classes" : "My Classes", icon: "graduation-cap", href: "/classes" },
     { section: "Assessments" },
     { key: "exams", label: "Exams", icon: "file-text", href: "/exams" },
+    // Owner-only approval + live-monitor hub, sits right under Exams.
+    ...(isOwner ? [{ key: "approvals" as const, label: "Approvals", icon: "check-circle" as const, href: "/exams/admin" }] : []),
     { key: "question-bank", label: "Question Bank", icon: "book-open", href: "/question-bank" },
     { key: "test-engine", label: "Test Engine", icon: "sparkles", href: "/test-engine" },
     { section: "Content" },

@@ -5,7 +5,12 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
 import { Button, Badge, DataTable, Icon, StatCard } from "@/components/ui";
-import type { Column, BadgeTone } from "@/components/ui";
+import type { Column } from "@/components/ui";
+import { StatusBadge } from "@/components/exam";
+import {
+  type ExamStatus, type ByStatusCounts,
+  TEACHER_BUCKETS, type StatusBucket,
+} from "@/lib/examStatus";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -16,7 +21,7 @@ type Tenant = { id: string; slug: string; name: string };
 type Exam = {
   id: string;
   title: string;
-  status: "draft" | "published" | "archived";
+  status: ExamStatus;
   visibility: "private" | "public_free" | "public_paid";
   durationMins: number;
   totalMarks: number;
@@ -25,28 +30,39 @@ type Exam = {
   createdAt: string;
 };
 
+// `GET /tenant/exams/stats` (11-status shape).
+type ExamStats = {
+  totalExams: number;
+  byStatus: ByStatusCounts;
+  approvalQueue: number;
+  live: number;
+  scheduled: number;
+  underEvaluation: number;
+  publicExams: number;
+  totalMarks: number;
+  totalAttempts: number;
+  submittedAttempts: number;
+  avgScorePct: number | null;
+};
+
 // ── Schedule helpers ────────────────────────────────────────────────────────
+// The lifecycle status is now the source of truth; scheduledAt/endsAt only drive
+// the live countdowns for `scheduled` (opens in…) and `live` (ends in…) rows.
 
-// - upcoming: scheduled, hasn't opened yet
-// - live:     inside a timed window (ends at endsAt, or scheduledAt + duration)
-// - open:     published with no schedule at all → always available
-// - closed:   its timed window has passed
-type ScheduleKind = "upcoming" | "live" | "open" | "closed";
-type ScheduleState = { kind: ScheduleKind; label: string; opensInMs: number | null; endsInMs: number | null };
+type ScheduleState = { kind: "upcoming" | "live"; opensInMs: number | null; endsInMs: number | null };
 
-// Derive an exam's live schedule state relative to `now`. Only published exams
-// carry a meaningful schedule; drafts/archived return null (shown as "—").
 function scheduleOf(e: Exam, now: number): ScheduleState | null {
-  if (e.status !== "published") return null;
-  const opens = e.scheduledAt ? new Date(e.scheduledAt).getTime() : null;
-  // The live window closes at an explicit endsAt, or — if only an open time is
-  // set — one exam-duration after it opens. No schedule ⇒ always open.
-  const closes = e.endsAt ? new Date(e.endsAt).getTime()
-    : opens ? opens + e.durationMins * 60_000 : null;
-  if (opens && opens > now) return { kind: "upcoming", label: `Opens ${fmtWhen(opens)}`, opensInMs: opens - now, endsInMs: null };
-  if (closes && closes <= now) return { kind: "closed", label: "Closed", opensInMs: null, endsInMs: null };
-  if (closes) return { kind: "live", label: "Live", opensInMs: null, endsInMs: closes - now };
-  return { kind: "open", label: "Open now", opensInMs: null, endsInMs: null };
+  if (e.status === "scheduled") {
+    const opens = e.scheduledAt ? new Date(e.scheduledAt).getTime() : null;
+    return { kind: "upcoming", opensInMs: opens != null ? opens - now : null, endsInMs: null };
+  }
+  if (e.status === "live") {
+    const opens = e.scheduledAt ? new Date(e.scheduledAt).getTime() : null;
+    const closes = e.endsAt ? new Date(e.endsAt).getTime()
+      : opens ? opens + e.durationMins * 60_000 : null;
+    return { kind: "live", opensInMs: null, endsInMs: closes != null ? closes - now : null };
+  }
+  return null;
 }
 
 function fmtWhen(ts: number): string {
@@ -67,12 +83,6 @@ function fmtCountdown(ms: number): string {
   return `${sec}s`;
 }
 
-const STATUS_TONE: Record<Exam["status"], BadgeTone> = {
-  published: "success",
-  draft: "warning",
-  archived: "neutral",
-};
-
 const VISIBILITY_LABEL: Record<Exam["visibility"], string> = {
   private: "Private",
   public_free: "Public · Free",
@@ -80,38 +90,21 @@ const VISIBILITY_LABEL: Record<Exam["visibility"], string> = {
 };
 
 // ── List filters ────────────────────────────────────────────────────────────
+// "All" + the six teacher lifecycle buckets. Every status maps to exactly one.
 
-// Every exam falls into exactly one bucket. Drafts/archived are terminal
-// statuses; published exams are bucketed by their live schedule state, so the
-// same exam moves from "upcoming" → "live" → "closed" as time passes.
-type FilterKey = "all" | "live" | "open" | "upcoming" | "draft" | "closed" | "archived";
+const STATUS_TO_BUCKET: Record<ExamStatus, string> = (() => {
+  const m = {} as Record<ExamStatus, string>;
+  for (const b of TEACHER_BUCKETS) for (const s of b.statuses) m[s] = b.key;
+  return m;
+})();
 
-function bucketOf(e: Exam, now: number): Exclude<FilterKey, "all"> {
-  if (e.status === "draft") return "draft";
-  if (e.status === "archived") return "archived";
-  return scheduleOf(e, now)?.kind ?? "open";
-}
-
-const FILTERS: { key: FilterKey; label: string; dot?: string }[] = [
-  { key: "all", label: "All" },
-  { key: "live", label: "Live", dot: "var(--success)" },
-  { key: "open", label: "Open now", dot: "var(--success)" },
-  { key: "upcoming", label: "Upcoming", dot: "var(--warning)" },
-  { key: "draft", label: "Draft", dot: "var(--warning)" },
-  { key: "closed", label: "Closed", dot: "var(--text-muted)" },
-  { key: "archived", label: "Archived", dot: "var(--text-muted)" },
-];
-
-type ExamStats = {
-  totalExams: number;
-  published: number;
-  draft: number;
-  archived: number;
-  publicExams: number;
-  totalMarks: number;
-  totalAttempts: number;
-  submittedAttempts: number;
-  avgScorePct: number | null;
+const FILTER_DOT: Record<string, string> = {
+  drafts: "var(--warning)",
+  review: "var(--warning)",
+  scheduled: "var(--accent)",
+  live: "var(--success)",
+  evaluation: "var(--warning)",
+  completed: "var(--text-muted)",
 };
 
 // ── Page ──────────────────────────────────────────────────────────────────────
@@ -127,7 +120,7 @@ export default function ExamsHubPage() {
   const [exams, setExams] = useState<Exam[]>([]);
   const [stats, setStats] = useState<ExamStats | null>(null);
   const [listLoading, setListLoading] = useState(false);
-  const [filter, setFilter] = useState<FilterKey>("all");
+  const [filter, setFilter] = useState<string>("all");
   const [now, setNow] = useState(() => Date.now());
 
   // Tick every second so schedule countdowns stay live.
@@ -173,7 +166,7 @@ export default function ExamsHubPage() {
     {
       key: "title",
       label: "Exam",
-      width: "26%",
+      width: "28%",
       render: (e) => (
         <div>
           <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-heading)" }}>{e.title}</div>
@@ -183,7 +176,7 @@ export default function ExamsHubPage() {
         </div>
       ),
     },
-    { key: "status", label: "Status", width: "12%", render: (e) => <Badge tone={STATUS_TONE[e.status]}>{e.status}</Badge> },
+    { key: "status", label: "Status", width: "16%", render: (e) => <StatusBadge status={e.status} /> },
     {
       key: "schedule",
       label: "Schedule",
@@ -192,7 +185,6 @@ export default function ExamsHubPage() {
         const sc = scheduleOf(e, now);
         if (!sc) return <span style={{ fontSize: 13, color: "var(--text-muted)" }}>—</span>;
 
-        // Currently running in a timed window — pulsing "LIVE" pill + time left.
         if (sc.kind === "live") {
           return (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -204,31 +196,22 @@ export default function ExamsHubPage() {
           );
         }
 
-        // Always available (no schedule) — steady green pill, no pulse.
-        if (sc.kind === "open") {
-          return (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, fontSize: 11.5, fontWeight: 600, color: "var(--success)", background: "var(--success-soft)", border: "1px solid rgba(16,185,129,.28)" }}>
-              <Icon name="clock" size={12} style={{ flexShrink: 0 }} />Open
-            </span>
-          );
-        }
-
-        // Upcoming (with countdown) or closed.
-        const upcoming = sc.kind === "upcoming";
+        // Scheduled — opens in…
         return (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-            <Icon name="clock" size={13} style={{ color: upcoming ? "var(--warning)" : "var(--text-muted)", flexShrink: 0 }} />
-            <span style={{ fontSize: 12.5, color: "var(--text-body)" }}>{sc.label}</span>
+            <Icon name="clock" size={13} style={{ color: "var(--accent)", flexShrink: 0 }} />
+            <span style={{ fontSize: 12.5, color: "var(--text-body)" }}>
+              {e.scheduledAt ? `Opens ${fmtWhen(new Date(e.scheduledAt).getTime())}` : "Scheduled"}
+            </span>
             {sc.opensInMs != null && (
-              <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--warning)", fontWeight: 600 }}>· {fmtCountdown(sc.opensInMs)}</span>
+              <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--accent)", fontWeight: 600 }}>· {fmtCountdown(sc.opensInMs)}</span>
             )}
           </span>
         );
       },
     },
-    { key: "visibility", label: "Visibility", width: "14%", render: (e) => <span style={{ fontSize: 13, color: "var(--text-body)" }}>{VISIBILITY_LABEL[e.visibility]}</span> },
-    { key: "marks", label: "Marks", width: "9%", render: (e) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{e.totalMarks}</span> },
-    { key: "mins", label: "Duration", width: "9%", render: (e) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{e.durationMins} min</span> },
+    { key: "visibility", label: "Visibility", width: "13%", render: (e) => <span style={{ fontSize: 13, color: "var(--text-body)" }}>{VISIBILITY_LABEL[e.visibility]}</span> },
+    { key: "marks", label: "Marks", width: "8%", render: (e) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{e.totalMarks}</span> },
     {
       key: "act",
       label: "",
@@ -249,21 +232,23 @@ export default function ExamsHubPage() {
     );
   }
 
-  // Published exams scheduled to open in the future, soonest first.
+  // Scheduled exams opening in the future, soonest first.
   const upcoming = exams
     .map((e) => ({ e, sc: scheduleOf(e, now) }))
-    .filter((x): x is { e: Exam; sc: ScheduleState & { opensInMs: number } } => x.sc?.opensInMs != null)
+    .filter((x): x is { e: Exam; sc: ScheduleState & { opensInMs: number } } => x.sc?.kind === "upcoming" && x.sc.opensInMs != null && x.sc.opensInMs > 0)
     .sort((a, b) => a.sc.opensInMs - b.sc.opensInMs);
   const nextUp = upcoming[0];
 
-  // Bucket every exam once, then derive per-filter counts and the visible slice.
-  const buckets = exams.map((e) => bucketOf(e, now));
-  const counts = buckets.reduce<Record<string, number>>((acc, b) => {
-    acc[b] = (acc[b] ?? 0) + 1;
+  // Per-bucket counts + the visible slice.
+  const counts = exams.reduce<Record<string, number>>((acc, e) => {
+    const k = STATUS_TO_BUCKET[e.status];
+    acc[k] = (acc[k] ?? 0) + 1;
     return acc;
   }, {});
-  const visibleExams = filter === "all" ? exams : exams.filter((_, i) => buckets[i] === filter);
-  const activeLabel = FILTERS.find((f) => f.key === filter)?.label.toLowerCase() ?? "";
+  const visibleExams = filter === "all" ? exams : exams.filter((e) => STATUS_TO_BUCKET[e.status] === filter);
+  const activeLabel = filter === "all" ? "" : (TEACHER_BUCKETS.find((b) => b.key === filter)?.label.toLowerCase() ?? "");
+
+  const num = (n: number | null | undefined) => (stats == null ? "…" : n == null ? "—" : String(n));
 
   return (
     <TeacherShell
@@ -279,38 +264,33 @@ export default function ExamsHubPage() {
       )}
 
       {/* ── KPI stat cards ────────────────────────────────────────────────── */}
-      {(() => {
-        const num = (n: number | null | undefined) => (stats == null ? "…" : n == null ? "—" : String(n));
-        return (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14, marginBottom: 28 }}>
-            <StatCard
-              label="Total exams"
-              value={num(stats?.totalExams)}
-              sub={stats ? `${stats.published} published · ${stats.draft} draft` : " "}
-            />
-            <StatCard
-              label="Published"
-              value={num(stats?.published)}
-              sub={stats ? `${stats.publicExams} public · ${stats.archived} archived` : " "}
-            />
-            <StatCard
-              label="Attempts taken"
-              value={num(stats?.totalAttempts)}
-              sub={stats ? `${stats.submittedAttempts} submitted` : " "}
-            />
-            <StatCard
-              label="Avg score"
-              value={stats == null ? "…" : stats.avgScorePct == null ? "—" : `${stats.avgScorePct}%`}
-              sub={stats && stats.submittedAttempts === 0 ? "No results yet" : "Across graded results"}
-            />
-            <StatCard
-              label="Upcoming"
-              value={String(upcoming.length)}
-              sub={nextUp ? `Next opens in ${fmtCountdown(nextUp.sc.opensInMs)}` : "None scheduled"}
-            />
-          </div>
-        );
-      })()}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 14, marginBottom: 28 }}>
+        <StatCard
+          label="Total exams"
+          value={num(stats?.totalExams)}
+          sub={stats ? `${stats.byStatus.draft} draft · ${stats.approvalQueue} in review` : " "}
+        />
+        <StatCard
+          label="Live now"
+          value={num(stats?.live)}
+          sub={stats ? `${stats.scheduled} scheduled` : " "}
+        />
+        <StatCard
+          label="Awaiting results"
+          value={num(stats?.underEvaluation)}
+          sub={stats ? `${stats.byStatus.results_published} published` : " "}
+        />
+        <StatCard
+          label="Attempts taken"
+          value={num(stats?.totalAttempts)}
+          sub={stats ? `${stats.submittedAttempts} submitted` : " "}
+        />
+        <StatCard
+          label="Avg score"
+          value={stats == null ? "…" : stats.avgScorePct == null ? "—" : `${stats.avgScorePct}%`}
+          sub={stats && stats.submittedAttempts === 0 ? "No results yet" : "Across graded results"}
+        />
+      </div>
 
       {/* ── Next-to-open highlight ────────────────────────────────────────── */}
       {nextUp && (
@@ -320,14 +300,14 @@ export default function ExamsHubPage() {
             width: "100%", textAlign: "left", cursor: "pointer", marginBottom: 28,
             display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
             padding: "16px 20px", borderRadius: 14,
-            border: "1px solid rgba(245,158,11,.35)", background: "var(--warning-soft)",
+            border: "1px solid rgba(99,102,241,.30)", background: "var(--accent-soft)",
           }}
         >
-          <span style={{ width: 40, height: 40, borderRadius: 11, background: "var(--warning)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <span style={{ width: 40, height: 40, borderRadius: 11, background: "var(--accent)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Icon name="clock" size={20} />
           </span>
           <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--warning)" }}>Next exam opens</div>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--accent)" }}>Next exam opens</div>
             <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-heading)", marginTop: 2 }}>{nextUp.e.title}</div>
             <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 1 }}>Opens {fmtWhen(new Date(nextUp.e.scheduledAt!).getTime())}</div>
           </div>
@@ -348,20 +328,20 @@ export default function ExamsHubPage() {
         </Button>
       </div>
 
-      {/* Filter chips — filter the list in place by status / live schedule state */}
+      {/* Filter chips — the six teacher lifecycle buckets */}
       <div className="gv-fchips" role="group" aria-label="Filter exams" style={{ marginBottom: 16 }}>
-        {FILTERS.map((f) => {
-          const count = f.key === "all" ? exams.length : counts[f.key] ?? 0;
+        {[{ key: "all", label: "All" } as StatusBucket & { label: string }, ...TEACHER_BUCKETS].map((b) => {
+          const count = b.key === "all" ? exams.length : counts[b.key] ?? 0;
           return (
             <button
-              key={f.key}
+              key={b.key}
               type="button"
               className="gv-fchip"
-              aria-pressed={filter === f.key}
-              onClick={() => setFilter(f.key)}
+              aria-pressed={filter === b.key}
+              onClick={() => setFilter(b.key)}
             >
-              {f.dot && <span className="gv-fchip-dot" style={{ background: f.dot }} />}
-              {f.label}
+              {FILTER_DOT[b.key] && <span className="gv-fchip-dot" style={{ background: FILTER_DOT[b.key] }} />}
+              {b.label}
               <span className="gv-fchip-count">{count}</span>
             </button>
           );

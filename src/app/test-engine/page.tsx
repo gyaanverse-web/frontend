@@ -645,7 +645,7 @@ export default function TestEnginePage() {
               </span>
               <div>
                 <div style={{ fontFamily: "var(--font-sans)", fontSize: 16, fontWeight: 700, color: "var(--text-heading)" }}>How paper generation works</div>
-                <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Three quick steps — nothing goes live until you publish.</div>
+                <div style={{ fontSize: 13, color: "var(--text-muted)" }}>Three quick steps — nothing goes live until an admin approves it.</div>
               </div>
             </div>
 
@@ -653,7 +653,7 @@ export default function TestEnginePage() {
               {[
                 { n: 1, t: "Select scope", d: "Choose a subject, pick a scope type, then tick the chapters to draw from." },
                 { n: 2, t: "Set distribution", d: "Decide how many questions per type and the easy/moderate/hard split. Live availability tells you what the bank can fill." },
-                { n: 3, t: "Review & finalize", d: "Keep all or curate each drafted question, then finalize to save it as a draft. Assign classes, schedule and publish from the exam page." },
+                { n: 3, t: "Review & finalize", d: "Keep all or curate each drafted question, then finalize to save it as a draft. Assign classes and submit for review from the exam page." },
               ].map((s) => (
                 <div key={s.n} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                   <div style={{ width: 26, height: 26, borderRadius: "50%", flexShrink: 0, background: "var(--accent)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, fontFamily: "var(--font-sans)" }}>{s.n}</div>
@@ -1032,7 +1032,7 @@ export default function TestEnginePage() {
               <>
                 <span style={{ fontSize: 13, color: "var(--success)", fontWeight: 600 }}>
                   <Icon name="check-circle" size={14} style={{ verticalAlign: "-2px", marginRight: 5 }} />
-                  Saved to drafts. Assign classes, set the schedule & publish from the exam page.
+                  Saved to drafts. Assign classes, then submit for review from the exam page.
                 </span>
                 <Button variant="app" onClick={() => router.push(`/exams/${exam.id}`)}>Go to exam →</Button>
               </>

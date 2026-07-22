@@ -6,8 +6,8 @@ import { StudentResults } from "@/components/student/StudentResults";
 
 function ResultContent() {
   const { id } = useParams<{ id: string }>();
-  const state = useSearchParams().get("state") === "evaluating" ? "evaluating" : "evaluated";
-  return <StudentResults examId={id} state={state} />;
+  const sessionId = useSearchParams().get("session") ?? "";
+  return <StudentResults examId={id} sessionId={sessionId} />;
 }
 
 export default function ExamResultPage() {

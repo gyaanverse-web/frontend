@@ -85,16 +85,27 @@ export type Class = {
   teacherName?: string | null;
 };
 
+// Lifecycle status re-exported from the single source of truth in lib/examStatus.
+import type { ExamStatus } from "@/lib/examStatus";
+export type { ExamStatus } from "@/lib/examStatus";
+
 export type Exam = {
   id: string;
   title: string;
-  status: "draft" | "published" | "archived";
+  status: ExamStatus;
   visibility: "private" | "public_free" | "public_paid";
   durationMins: number;
   totalMarks: number;
   maxAttempts: number;
+  qualityScore: number | null;
   gradeLevel: string | null;
   scheduledAt: string | null;
   endsAt: string | null;
+  // Approval-lifecycle audit (nullable until the relevant transition happens).
+  submittedAt: string | null;
+  reviewedAt: string | null;
+  reviewRemarks: string | null;
+  resultsPublishedAt: string | null;
+  completedAt: string | null;
   createdAt: string;
 };

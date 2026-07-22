@@ -1,44 +1,40 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
-import { Card, Badge, Button, Icon, Select } from "@/components/ui";
+import { Card, Badge, Button, Icon } from "@/components/ui";
 import { ProgressRing } from "./StudentBits";
 
 type ShellUser = { name: string; role?: string };
 type ShellTenant = { name: string; slug: string } | null;
 
-type Report = {
-  title: string;
-  subject: string;
-  date: string;
-  score: string;
-  pct: number;
-  auto: string;
-  ai: string | null;
-  aiPending?: boolean;
-  status: "Result ready" | "AI review pending";
+// ── Backend contract (mirror listReportsForStudent → ReportSummary) ───────────
+// Private-exam reports only appear here once the teacher publishes results;
+// public (self-paced) exam reports show as soon as they're evaluated.
+type ReportSummary = {
+  id: string;
+  sessionId: string;
+  examId: string;
+  examTitle: string;
+  totalScore: number;
+  maxScore: number;
+  autoScore: number;
+  aiScore: number;
+  status: "pending" | "ready" | "archived";
+  publishedAt: string | null;
+  createdAt: string;
 };
 
-// ── Placeholder data ──────────────────────────────────────────────────────────
-// Mirrors the approved design. TODO: wire to the student reports endpoint
-// (`/reports` scoped to the signed-in student) once the backend surface is confirmed.
-const REPORTS: Report[] = [
-  { title: "Mid-Term Mock — Mechanics", subject: "Physics", date: "Jul 6, 2026", score: "228/300 (76%)", pct: 76, auto: "180/200", ai: "48/100", status: "Result ready" },
-  { title: "Organic Chemistry Quiz", subject: "Chemistry", date: "Jul 2, 2026", score: "156/200 (78%)", pct: 78, auto: "156/200", ai: null, status: "Result ready" },
-  { title: "Maths Weekly Test 6", subject: "Maths", date: "Jun 28, 2026", score: "162/250 (65%)", pct: 65, auto: "162/250", ai: null, status: "Result ready" },
-  { title: "Rotational Motion Subjective", subject: "Physics", date: "Jun 24, 2026", score: "Pending", pct: 40, auto: "32/50", ai: null, aiPending: true, status: "AI review pending" },
-];
+function pctOf(r: ReportSummary): number {
+  return r.maxScore > 0 ? Math.round((r.totalScore / r.maxScore) * 100) : 0;
+}
 
-const WEAK_AREAS = [
-  { topic: "Rotational Motion", pct: 42 },
-  { topic: "Organic Nomenclature", pct: 58 },
-  { topic: "Sequences & Series", pct: 81 },
-];
-
-/** Average-score trend sparkline over recent attempts. */
-function ReportTrendChart({ pts = [58, 61, 55, 64, 68, 66, 72, 76] }: { pts?: number[] }) {
-  const w = 760, h = 130, pad = 8, max = 100, min = 40;
+/** Average-score trend sparkline over recent attempts (oldest → newest). */
+function ReportTrendChart({ pts }: { pts: number[] }) {
+  const w = 760, h = 130, pad = 8, max = 100, min = 0;
+  if (pts.length < 2) return null;
   const coords = pts.map((v, i) => [pad + (i * (w - pad * 2)) / (pts.length - 1), h - pad - ((v - min) / (max - min)) * (h - pad * 2)] as const);
   const line = coords.map((c, i) => (i === 0 ? "M" : "L") + c[0] + "," + c[1]).join(" ");
   const last = coords[coords.length - 1];
@@ -68,36 +64,27 @@ function ReportTrendChart({ pts = [58, 61, 55, 64, 68, 66, 72, 76] }: { pts?: nu
   );
 }
 
-/** Topic mastery bar — red < 50%, amber < 70%, green otherwise. */
-function WeakAreaBar({ topic, pct }: { topic: string; pct: number }) {
-  const tone = pct < 50 ? "var(--danger)" : pct < 70 ? "var(--warning)" : "var(--success)";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <span style={{ fontSize: 13, color: "var(--text-body)", width: 160, flex: "none" }}>{topic}</span>
-      <div style={{ flex: 1, height: 8, borderRadius: 999, background: "var(--border-default)", overflow: "hidden" }}>
-        <div style={{ width: `${pct}%`, height: "100%", background: tone }} />
-      </div>
-      <span style={{ fontSize: 12.5, fontWeight: 600, color: "var(--text-heading)", width: 34, textAlign: "right" }}>{pct}%</span>
-    </div>
-  );
-}
-
-function ReportRow({ r, onView }: { r: Report; onView: (r: Report) => void }) {
+function ReportRow({ r, onView }: { r: ReportSummary; onView: (r: ReportSummary) => void }) {
+  const pct = pctOf(r);
+  const pending = r.status === "pending";
+  const date = new Date(r.publishedAt ?? r.createdAt).toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" });
+  const hasAi = r.aiScore > 0 || pending;
   return (
     <Card padding={16} style={{ display: "flex", alignItems: "center", gap: 16 }}>
-      <ProgressRing pct={r.pct} size={44} label={`${r.pct}%`} />
+      <ProgressRing pct={pct} size={44} label={`${pct}%`} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14.5, color: "var(--text-heading)" }}>{r.title}</span>
-          <Badge tone="accent">{r.subject}</Badge>
+          <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14.5, color: "var(--text-heading)" }}>{r.examTitle}</span>
         </div>
-        <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 2 }}>{r.date} · {r.score}</div>
+        <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 2 }}>
+          {date} · {pending ? "Score pending" : `${r.totalScore}/${r.maxScore} (${pct}%)`}
+        </div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <Badge tone="neutral">Auto {r.auto}</Badge>
-        {r.ai && <Badge tone={r.aiPending ? "warning" : "accent"}>{r.aiPending ? "AI review pending" : `AI ${r.ai}`}</Badge>}
+        <Badge tone="neutral">Auto {r.autoScore}</Badge>
+        {hasAi && <Badge tone={pending ? "warning" : "accent"}>{pending ? "AI review pending" : `AI ${r.aiScore}`}</Badge>}
       </div>
-      <Badge tone={r.status === "Result ready" ? "success" : "warning"}>{r.status}</Badge>
+      <Badge tone={pending ? "warning" : "success"}>{pending ? "AI review pending" : "Result ready"}</Badge>
       <Button variant="ghost" size="sm" onClick={() => onView(r)}>View</Button>
     </Card>
   );
@@ -106,10 +93,31 @@ function ReportRow({ r, onView }: { r: Report; onView: (r: Report) => void }) {
 export function StudentReportsHistory({ user, tenant }: { user: ShellUser; tenant: ShellTenant }) {
   const router = useRouter();
 
-  // TODO wire API: once the student report list is live, render <StudentReportsEmpty />
-  // when it returns zero reports, and route "View" to the per-report detail screen.
-  function viewReport(_r: Report) {
-    router.push("/reports");
+  const [reports, setReports] = useState<ReportSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get<{ reports: ReportSummary[] }>("/reports")
+      .then((res) => { if (!cancelled) setReports(res.reports); })
+      .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Could not load your results."); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Oldest → newest for the trend line.
+  const trend = useMemo(
+    () => [...reports].reverse().map(pctOf),
+    [reports],
+  );
+
+  function viewReport(r: ReportSummary) {
+    router.push(`/exams/${r.examId}/result?session=${r.sessionId}`);
+  }
+
+  if (!loading && !error && reports.length === 0) {
+    return <StudentReportsEmpty user={user} tenant={tenant} />;
   }
 
   return (
@@ -122,62 +130,41 @@ export function StudentReportsHistory({ user, tenant }: { user: ShellUser; tenan
           <h2 style={{ fontSize: 26, margin: 0 }}>My results</h2>
         </div>
 
-        {/* ── Average score trend ──────────────────────────────────────────── */}
-        <Card padding={24} style={{ marginBottom: 22 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <h4 style={{ margin: 0, color: "var(--text-heading)" }}>Average score trend</h4>
-            <div style={{ display: "flex", gap: 6 }}>
-              {["All", "Physics", "Chemistry", "Maths"].map((s, i) => (
-                <span
-                  key={s}
-                  style={{
-                    fontSize: 12.5,
-                    fontWeight: 600,
-                    padding: "5px 12px",
-                    borderRadius: 999,
-                    background: i === 0 ? "var(--accent)" : "var(--surface-inset)",
-                    color: i === 0 ? "#fff" : "var(--text-body)",
-                  }}
-                >
-                  {s}
-                </span>
+        {loading && (
+          <div style={{ padding: "60px 0", textAlign: "center", color: "var(--text-muted)", fontSize: 14 }}>Loading your results…</div>
+        )}
+
+        {!loading && error && (
+          <Card padding={20} style={{ color: "var(--danger)", fontSize: 14.5 }}>{error}</Card>
+        )}
+
+        {!loading && !error && (
+          <>
+            {/* ── Average score trend ──────────────────────────────────────── */}
+            {trend.length >= 2 && (
+              <Card padding={24} style={{ marginBottom: 22 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <h4 style={{ margin: 0, color: "var(--text-heading)" }}>Score trend</h4>
+                  <span style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Last {trend.length} results</span>
+                </div>
+                <ReportTrendChart pts={trend} />
+              </Card>
+            )}
+
+            {/* ── Report list ──────────────────────────────────────────────── */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {reports.map((r) => (
+                <ReportRow key={r.id} r={r} onView={viewReport} />
               ))}
             </div>
-          </div>
-          <ReportTrendChart />
-        </Card>
-
-        {/* ── Weak areas ───────────────────────────────────────────────────── */}
-        <Card padding={22} style={{ marginBottom: 22 }}>
-          <h4 style={{ margin: "0 0 14px", color: "var(--text-heading)" }}>Weak areas</h4>
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {WEAK_AREAS.map((w) => (
-              <WeakAreaBar key={w.topic} topic={w.topic} pct={w.pct} />
-            ))}
-          </div>
-        </Card>
-
-        {/* ── Filters ──────────────────────────────────────────────────────── */}
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
-          <Select options={["All subjects", "Physics", "Chemistry", "Maths"]} wrapperStyle={{ width: 180 }} />
-          <Select options={["All time", "Last 30 days", "Last 90 days"]} wrapperStyle={{ width: 180 }} />
-          <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, color: "var(--text-body)" }}>
-            <input type="checkbox" className="gv-switch" />Only my weak areas
-          </label>
-        </div>
-
-        {/* ── Report list ──────────────────────────────────────────────────── */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {REPORTS.map((r) => (
-            <ReportRow key={r.title} r={r} onView={viewReport} />
-          ))}
-        </div>
+          </>
+        )}
       </div>
     </TeacherShell>
   );
 }
 
-/** Empty state — shown when the student has no results yet. */
+/** Empty state — shown when the student has no published results yet. */
 export function StudentReportsEmpty({ user, tenant }: { user: ShellUser; tenant: ShellTenant }) {
   const router = useRouter();
   return (
@@ -194,7 +181,9 @@ export function StudentReportsEmpty({ user, tenant }: { user: ShellUser; tenant:
             <Icon name="chart-column" size={36} style={{ color: "var(--accent)" }} />
           </div>
           <h3 style={{ margin: 0, fontSize: 20 }}>No results yet</h3>
-          <p style={{ margin: 0, fontSize: 14.5, color: "var(--text-body)" }}>Take your first exam to see your progress here.</p>
+          <p style={{ margin: 0, fontSize: 14.5, color: "var(--text-body)" }}>
+            Results appear here after you take an exam and your teacher publishes them.
+          </p>
           <Button variant="app" arrow onClick={() => router.push("/dashboard?screen=Exams")}>Go to my exams</Button>
         </div>
       </div>

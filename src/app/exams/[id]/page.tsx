@@ -5,8 +5,14 @@ import type { CSSProperties } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
-import { Button, Badge, DataTable, Tabs, Icon } from "@/components/ui";
+import { Button, Badge, DataTable, Tabs, Icon, Modal } from "@/components/ui";
 import type { Column, BadgeTone } from "@/components/ui";
+import { StatusBadge, StatusTimeline } from "@/components/exam";
+import type { ExamStatusHistoryRow } from "@/components/exam";
+import {
+  type ExamStatus,
+  isExamEditable, canSubmitForReview, canPublishResults, canArchive,
+} from "@/lib/examStatus";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -39,14 +45,24 @@ type Exam = {
   visibility: "private" | "public_free" | "public_paid";
   price: string | null;
   maxAttempts: number;
-  status: "draft" | "published" | "archived";
+  status: ExamStatus;
   totalMarks: number;
+  qualityScore: number | null;
   publishedAt: string | null;
   scheduledAt: string | null;
   endsAt: string | null;
+  // Approval-lifecycle audit (nullable until the relevant transition happens).
+  submittedAt: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  reviewRemarks: string | null;
+  resultsPublishedAt: string | null;
+  completedAt: string | null;
   createdAt: string;
   updatedAt: string;
   questions: Question[];
+  // Approval/lifecycle timeline (returned by GET /tenant/exams/:id).
+  statusHistory?: ExamStatusHistoryRow[];
 };
 
 type Question = {
@@ -585,6 +601,15 @@ export default function ExamDetailPage() {
   const [sessionsErr, setSessionsErr]   = useState("");
   const [sessionsLoaded, setSessionsLoaded] = useState(false);
 
+  // ── Admin (owner) review + live controls ────────────────────────────────────
+  type AdminModal = null | "approve" | "request-changes" | "reject" | "extend";
+  const [adminModal, setAdminModal]     = useState<AdminModal>(null);
+  const [adminBusy, setAdminBusy]       = useState(false);
+  const [adminErr, setAdminErr]         = useState("");
+  const [remarks, setRemarks]           = useState("");
+  const [addMinutes, setAddMinutes]     = useState("15");
+  const [schedForm, setSchedForm]       = useState({ classIds: [] as string[], scheduledAt: "", endsAt: "" });
+
   const loadExam = useCallback(async (slug: string): Promise<Exam | null> => {
     try {
       const data = await api.get<{ exam: Exam }>(`/tenant/exams/${examId}`, { tenant: slug });
@@ -706,16 +731,48 @@ export default function ExamDetailPage() {
     }
   }
 
-  async function handlePublish() {
+  // Teacher submit-for-review — path is still /publish (repurposed in Phase 3),
+  // draft|changes_requested → under_review.
+  async function handleSubmit() {
     if (!tenant || !exam) return;
-    setActionErr(""); setActionMsg(""); setActionLoading("publish");
+    setActionErr(""); setActionMsg(""); setActionLoading("submit");
     try {
       const res = await api.post<{ exam: Exam }>(`/tenant/exams/${exam.id}/publish`, {}, { tenant: tenant.slug });
       setExam(prev => prev ? { ...prev, ...res.exam } : res.exam);
-      setActionMsg("Exam published successfully.");
+      setActionMsg("Submitted for review. Your admin will approve & schedule it.");
+      await loadExam(tenant.slug);
     } catch (err) {
-      setActionErr(err instanceof Error ? err.message : "Failed to publish");
+      setActionErr(err instanceof Error ? err.message : "Failed to submit for review");
     } finally {
+      setActionLoading(null);
+    }
+  }
+
+  // Teacher publish-results — under_evaluation → results_published.
+  async function handlePublishResults() {
+    if (!tenant || !exam) return;
+    setActionErr(""); setActionMsg(""); setActionLoading("publish-results");
+    try {
+      const res = await api.post<{ exam: Exam }>(`/tenant/exams/${exam.id}/publish-results`, {}, { tenant: tenant.slug });
+      setExam(prev => prev ? { ...prev, ...res.exam } : res.exam);
+      setActionMsg("Results published — students can now see their scores & reports.");
+      await loadExam(tenant.slug);
+    } catch (err) {
+      setActionErr(err instanceof Error ? err.message : "Failed to publish results");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  // Clone into a fresh draft owned by the requester, then jump to it.
+  async function handleDuplicate() {
+    if (!tenant || !exam) return;
+    setActionErr(""); setActionMsg(""); setActionLoading("duplicate");
+    try {
+      const res = await api.post<{ exam: Exam }>(`/tenant/exams/${exam.id}/duplicate`, {}, { tenant: tenant.slug });
+      router.push(`/exams/${res.exam.id}`);
+    } catch (err) {
+      setActionErr(err instanceof Error ? err.message : "Failed to duplicate exam");
       setActionLoading(null);
     }
   }
@@ -727,10 +784,99 @@ export default function ExamDetailPage() {
       const res = await api.post<{ exam: Exam }>(`/tenant/exams/${exam.id}/archive`, {}, { tenant: tenant.slug });
       setExam(prev => prev ? { ...prev, ...res.exam } : res.exam);
       setActionMsg("Exam archived.");
+      await loadExam(tenant.slug);
     } catch (err) {
       setActionErr(err instanceof Error ? err.message : "Failed to archive");
     } finally {
       setActionLoading(null);
+    }
+  }
+
+  // Open the Approve & Schedule modal — pre-fill classes with current links and
+  // times with any already-set schedule.
+  function openApprove() {
+    if (!exam) return;
+    setAdminErr(""); setRemarks("");
+    setSchedForm({
+      classIds: linkedClasses.map(lc => lc.classId),
+      scheduledAt: exam.scheduledAt ? exam.scheduledAt.slice(0, 16) : "",
+      endsAt: exam.endsAt ? exam.endsAt.slice(0, 16) : "",
+    });
+    setAdminModal("approve");
+  }
+
+  async function refreshAfterAdmin() {
+    if (!tenant) return;
+    await loadExam(tenant.slug);
+    loadLinkedClasses(tenant.slug);
+  }
+
+  async function handleApprove() {
+    if (!tenant || !exam) return;
+    setAdminErr(""); setAdminBusy(true);
+    try {
+      const body: Record<string, unknown> = {};
+      if (schedForm.classIds.length > 0) body.classIds = schedForm.classIds;
+      if (schedForm.scheduledAt) body.scheduledAt = new Date(schedForm.scheduledAt).toISOString();
+      if (schedForm.endsAt) body.endsAt = new Date(schedForm.endsAt).toISOString();
+      await api.post(`/tenant/exams/${exam.id}/approve`, body, { tenant: tenant.slug });
+      setActionMsg("Approved & scheduled.");
+      setAdminModal(null);
+      await refreshAfterAdmin();
+    } catch (err) {
+      setAdminErr(err instanceof Error ? err.message : "Failed to approve");
+    } finally {
+      setAdminBusy(false);
+    }
+  }
+
+  async function handleReviewDecision(kind: "request-changes" | "reject") {
+    if (!tenant || !exam) return;
+    setAdminErr(""); setAdminBusy(true);
+    try {
+      await api.post(`/tenant/exams/${exam.id}/${kind}`, { remarks }, { tenant: tenant.slug });
+      setActionMsg(kind === "reject" ? "Exam rejected." : "Changes requested — sent back to the teacher.");
+      setAdminModal(null); setRemarks("");
+      await refreshAfterAdmin();
+    } catch (err) {
+      setAdminErr(err instanceof Error ? err.message : "Failed to submit decision");
+    } finally {
+      setAdminBusy(false);
+    }
+  }
+
+  // Live controls — no body, act on `live`/`scheduled`.
+  async function handleLiveAction(kind: "go-live" | "end" | "force-submit") {
+    if (!tenant || !exam) return;
+    setActionErr(""); setActionMsg(""); setActionLoading(kind);
+    try {
+      await api.post(`/tenant/exams/${exam.id}/${kind}`, {}, { tenant: tenant.slug });
+      setActionMsg(
+        kind === "go-live" ? "Exam is now live." :
+        kind === "end" ? "Exam ended — active sessions were force-submitted." :
+        "All active sessions were force-submitted.",
+      );
+      await refreshAfterAdmin();
+      if (sessionsLoaded) loadSessions();
+    } catch (err) {
+      setActionErr(err instanceof Error ? err.message : "Live control failed");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function handleExtend() {
+    if (!tenant || !exam) return;
+    setAdminErr(""); setAdminBusy(true);
+    try {
+      await api.post(`/tenant/exams/${exam.id}/extend-time`, { addMinutes: parseInt(addMinutes, 10) }, { tenant: tenant.slug });
+      setActionMsg(`Extended by ${addMinutes} minutes.`);
+      setAdminModal(null);
+      await refreshAfterAdmin();
+    } catch (err) {
+      setAdminErr(err instanceof Error ? err.message : "Failed to extend time");
+    } finally {
+      setAdminBusy(false);
     }
   }
 
@@ -910,31 +1056,66 @@ export default function ExamDetailPage() {
 
   const isOwner = user.role === "coaching_owner";
   const canEdit = isOwner || exam.createdBy === user.id;
-  const editable = canEdit && exam.status !== "archived";
-  const statusTone: BadgeTone = exam.status === "published" ? "success" : exam.status === "archived" ? "neutral" : "warning";
+  const editable = canEdit && isExamEditable(exam.status);
   const unlinkedClasses = allClasses.filter(c => !linkedClasses.some(lc => lc.classId === c.id));
 
   const tabs = ["Questions"];
   if (exam.visibility === "private") tabs.push("Access");
   if (canEdit && exam.subjectId && chapters.length > 0) tabs.push("Coverage");
   tabs.push("Sessions");
+  tabs.push("Timeline");
   const activeTab = tabs.includes(tab) ? tab : "Questions";
 
   const headerActions = (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <Badge tone={statusTone}>{exam.status}</Badge>
-      {canEdit && !editMode && exam.status !== "archived" && (
+      <StatusBadge status={exam.status} />
+      {canEdit && !editMode && isExamEditable(exam.status) && (
         <Button variant="secondary" onClick={openEdit}>Edit details</Button>
       )}
-      {canEdit && exam.status === "draft" && (
-        <Button variant="app" disabled={actionLoading !== null} onClick={handlePublish}>
-          {actionLoading === "publish" ? "Publishing…" : "Publish →"}
+      {canEdit && (
+        <Button variant="ghost" disabled={actionLoading !== null} onClick={handleDuplicate}>
+          {actionLoading === "duplicate" ? "Duplicating…" : "Duplicate"}
         </Button>
       )}
-      {canEdit && exam.status === "published" && (
+      {canEdit && canSubmitForReview(exam.status) && (
+        <Button variant="app" disabled={actionLoading !== null} onClick={handleSubmit}>
+          {actionLoading === "submit" ? "Submitting…" : "Submit for review →"}
+        </Button>
+      )}
+      {canEdit && canPublishResults(exam.status) && (
+        <Button variant="app" disabled={actionLoading !== null} onClick={handlePublishResults}>
+          {actionLoading === "publish-results" ? "Publishing…" : "Publish results →"}
+        </Button>
+      )}
+      {isOwner && canArchive(exam.status) && (
         <Button variant="danger" disabled={actionLoading !== null} onClick={handleArchive}>
           {actionLoading === "archive" ? "Archiving…" : "Archive"}
         </Button>
+      )}
+
+      {/* ── Admin (owner) review + live controls ─────────────────────────── */}
+      {isOwner && exam.status === "under_review" && (
+        <>
+          <Button variant="ghost" onClick={() => { setRemarks(""); setAdminErr(""); setAdminModal("reject"); }}>Reject</Button>
+          <Button variant="secondary" onClick={() => { setRemarks(""); setAdminErr(""); setAdminModal("request-changes"); }}>Request changes</Button>
+          <Button variant="app" onClick={openApprove}>Approve &amp; schedule →</Button>
+        </>
+      )}
+      {isOwner && (exam.status === "approved" || exam.status === "scheduled") && (
+        <Button variant="app" disabled={actionLoading !== null} onClick={() => handleLiveAction("go-live")}>
+          {actionLoading === "go-live" ? "Starting…" : "Go live now →"}
+        </Button>
+      )}
+      {isOwner && exam.status === "live" && (
+        <>
+          <Button variant="secondary" onClick={() => { setAddMinutes("15"); setAdminErr(""); setAdminModal("extend"); }}>Extend time</Button>
+          <Button variant="secondary" disabled={actionLoading !== null} onClick={() => handleLiveAction("force-submit")}>
+            {actionLoading === "force-submit" ? "Submitting…" : "Force-submit all"}
+          </Button>
+          <Button variant="danger" disabled={actionLoading !== null} onClick={() => handleLiveAction("end")}>
+            {actionLoading === "end" ? "Ending…" : "End now"}
+          </Button>
+        </>
       )}
     </div>
   );
@@ -949,6 +1130,7 @@ export default function ExamDetailPage() {
           ["Duration", `${exam.durationMins} min`],
           ["Max attempts", exam.maxAttempts],
           ["Visibility", exam.visibility.replace("_", " ")],
+          ...(exam.qualityScore != null ? [["Quality", `${exam.qualityScore}%`] as [string, string | number]] : []),
         ].map(([l, v]) => (
           <div key={l as string}>
             <div style={{ fontFamily: "var(--font-sans)", fontSize: 22, fontWeight: 700, color: "var(--text-heading)", lineHeight: 1.1 }}>{v}</div>
@@ -1275,6 +1457,113 @@ export default function ExamDetailPage() {
     </div>
   );
 
+  // ── Timeline panel ──────────────────────────────────────────────────────────
+  const timelinePanel = (
+    <div className="gv-card" style={{ padding: "20px 22px" }}>
+      <div style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 14 }}>
+        Approval &amp; lifecycle history for this exam.
+      </div>
+      <StatusTimeline history={exam.statusHistory ?? []} />
+    </div>
+  );
+
+  // ── Admin modals (owner) ────────────────────────────────────────────────────
+  const adminModals = (
+    <>
+      {/* Approve & Schedule */}
+      <Modal open={adminModal === "approve"} onClose={() => !adminBusy && setAdminModal(null)} title="Approve & schedule" width={520}>
+        <p style={{ margin: "0 0 14px", fontSize: 13.5, color: "var(--text-muted)", lineHeight: 1.5 }}>
+          Approving assigns the exam to classes and sets its run window, then schedules it.
+          The exam goes live automatically at the start time (or use “Go live now”).
+        </p>
+        {exam.visibility === "private" && (
+          <div style={{ marginBottom: 14 }}>
+            <label style={fieldLabel}>Classes / batches</label>
+            <div style={{ marginTop: 6, maxHeight: 160, overflowY: "auto", border: "1px solid var(--border-default)", borderRadius: 10, padding: "6px 10px" }}>
+              {allClasses.length === 0 ? (
+                <p style={{ margin: "6px 0", fontSize: 13, color: "var(--text-muted)" }}>No classes available.</p>
+              ) : allClasses.map(c => (
+                <label key={c.id} style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer", fontSize: 14, color: "var(--text-heading)", padding: "4px 0" }}>
+                  <input
+                    type="checkbox"
+                    checked={schedForm.classIds.includes(c.id)}
+                    style={{ accentColor: "var(--accent)", width: 15, height: 15 }}
+                    onChange={() => setSchedForm(f => ({ ...f, classIds: f.classIds.includes(c.id) ? f.classIds.filter(id => id !== c.id) : [...f.classIds, c.id] }))}
+                  />
+                  {c.name}{c.grade ? ` (${c.grade})` : ""}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+        <div style={{ display: "flex", gap: 14, flexWrap: "wrap", marginBottom: 14 }}>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <label style={fieldLabel}>Starts at</label>
+            <input type="datetime-local" value={schedForm.scheduledAt} onChange={e => setSchedForm(f => ({ ...f, scheduledAt: e.target.value }))} style={{ ...inp, display: "block", marginTop: 6, width: "100%" }} />
+          </div>
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <label style={fieldLabel}>Ends at</label>
+            <input type="datetime-local" value={schedForm.endsAt} onChange={e => setSchedForm(f => ({ ...f, endsAt: e.target.value }))} style={{ ...inp, display: "block", marginTop: 6, width: "100%" }} />
+          </div>
+        </div>
+        <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--text-muted)" }}>
+          Leave times blank to schedule without a fixed window (start it manually with “Go live now”).
+        </p>
+        {adminErr && <p style={{ margin: "0 0 10px", color: "var(--danger)", fontSize: 13 }}>{adminErr}</p>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+          <Button variant="ghost" disabled={adminBusy} onClick={() => setAdminModal(null)}>Cancel</Button>
+          <Button variant="app" disabled={adminBusy} onClick={handleApprove}>{adminBusy ? "Approving…" : "Approve & schedule"}</Button>
+        </div>
+      </Modal>
+
+      {/* Request changes / Reject (shared remarks form) */}
+      <Modal
+        open={adminModal === "request-changes" || adminModal === "reject"}
+        onClose={() => !adminBusy && setAdminModal(null)}
+        title={adminModal === "reject" ? "Reject exam" : "Request changes"}
+      >
+        <p style={{ margin: "0 0 12px", fontSize: 13.5, color: "var(--text-muted)", lineHeight: 1.5 }}>
+          {adminModal === "reject"
+            ? "The exam is rejected and returned to the teacher. Add a reason."
+            : "Send the exam back to the teacher with notes on what to change."}
+        </p>
+        <label style={fieldLabel}>Remarks *</label>
+        <textarea
+          value={remarks}
+          onChange={e => setRemarks(e.target.value)}
+          rows={4}
+          placeholder="Explain what needs to change…"
+          style={{ ...inp, display: "block", width: "100%", marginTop: 6, resize: "vertical" }}
+        />
+        {adminErr && <p style={{ margin: "8px 0 0", color: "var(--danger)", fontSize: 13 }}>{adminErr}</p>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+          <Button variant="ghost" disabled={adminBusy} onClick={() => setAdminModal(null)}>Cancel</Button>
+          <Button
+            variant={adminModal === "reject" ? "danger" : "app"}
+            disabled={adminBusy || !remarks.trim()}
+            onClick={() => handleReviewDecision(adminModal === "reject" ? "reject" : "request-changes")}
+          >
+            {adminBusy ? "Working…" : adminModal === "reject" ? "Reject exam" : "Request changes"}
+          </Button>
+        </div>
+      </Modal>
+
+      {/* Extend live time */}
+      <Modal open={adminModal === "extend"} onClose={() => !adminBusy && setAdminModal(null)} title="Extend time" width={380}>
+        <p style={{ margin: "0 0 12px", fontSize: 13.5, color: "var(--text-muted)", lineHeight: 1.5 }}>
+          Pushes back the exam’s end time and every in-progress session’s expiry.
+        </p>
+        <label style={fieldLabel}>Add minutes</label>
+        <input type="number" min={1} max={600} value={addMinutes} onChange={e => setAddMinutes(e.target.value)} style={{ ...inp, display: "block", marginTop: 6, width: 120 }} />
+        {adminErr && <p style={{ margin: "8px 0 0", color: "var(--danger)", fontSize: 13 }}>{adminErr}</p>}
+        <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 14 }}>
+          <Button variant="ghost" disabled={adminBusy} onClick={() => setAdminModal(null)}>Cancel</Button>
+          <Button variant="app" disabled={adminBusy || !(parseInt(addMinutes, 10) > 0)} onClick={handleExtend}>{adminBusy ? "Extending…" : "Extend"}</Button>
+        </div>
+      </Modal>
+    </>
+  );
+
   return (
     <TeacherShell
       tenant={tenant}
@@ -1291,9 +1580,35 @@ export default function ExamDetailPage() {
       )}
       {actionErr && <p style={{ color: "var(--danger)", fontSize: 13, marginBottom: 12 }}>{actionErr}</p>}
       {actionMsg && <p style={{ color: "var(--success)", fontSize: 13, marginBottom: 12 }}>{actionMsg}</p>}
-      {exam.status === "published" && exam.visibility === "private" && (
+
+      {/* Admin review remarks — surfaced when the exam was bounced or rejected. */}
+      {(exam.status === "changes_requested" || exam.status === "rejected") && exam.reviewRemarks && (
+        <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: "var(--radius-md)", border: `1px solid ${exam.status === "rejected" ? "rgba(244,63,94,0.35)" : "rgba(245,158,11,0.4)"}`, background: exam.status === "rejected" ? "var(--danger-soft)" : "var(--warning-soft)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: exam.status === "rejected" ? "var(--danger)" : "var(--warning)", marginBottom: 6 }}>
+            <Icon name="alert-triangle" size={14} />
+            {exam.status === "rejected" ? "Rejected by admin" : "Changes requested"}
+          </div>
+          <p style={{ margin: 0, fontSize: 13.5, color: "var(--text-heading)", whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{exam.reviewRemarks}</p>
+          {exam.status === "changes_requested" && (
+            <p style={{ margin: "8px 0 0", fontSize: 12.5, color: "var(--text-muted)" }}>Make the changes, then re-submit for review.</p>
+          )}
+        </div>
+      )}
+
+      {/* Results-visibility hints for the evaluation / published states. */}
+      {canEdit && exam.status === "under_evaluation" && (
+        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, paddingLeft: 12, borderLeft: "3px solid var(--warning)" }}>
+          Sessions are being evaluated. Results stay hidden from students until you <strong>Publish results</strong>.
+        </p>
+      )}
+      {canEdit && exam.status === "results_published" && (
+        <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, paddingLeft: 12, borderLeft: "3px solid var(--success)" }}>
+          Results are published — students can see their scores &amp; reports.
+        </p>
+      )}
+      {editable && exam.visibility === "private" && linkedClasses.length === 0 && (
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, paddingLeft: 12, borderLeft: "3px solid var(--border-default)" }}>
-          Link classes under the <strong>Access</strong> tab to give students access.
+          Link at least one class under the <strong>Access</strong> tab before submitting for review.
         </p>
       )}
 
@@ -1310,6 +1625,9 @@ export default function ExamDetailPage() {
       {activeTab === "Access" && accessPanel}
       {activeTab === "Coverage" && coveragePanel}
       {activeTab === "Sessions" && sessionsPanel}
+      {activeTab === "Timeline" && timelinePanel}
+
+      {adminModals}
     </TeacherShell>
   );
 }

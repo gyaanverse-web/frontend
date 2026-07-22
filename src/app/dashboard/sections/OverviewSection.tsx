@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { Card, Badge, Button, Icon, Eyebrow } from "@/components/ui";
 import type { IconName } from "@/components/ui";
 import { PLANS, fmtLimit, type PlanName, type Tenant, type User, type Member, type Class, type Exam } from "../types";
+import { examStatusLabel } from "@/lib/examStatus";
 
 type Props = { tenant: Tenant; user: User; onNavigate: (screen: string) => void };
 
@@ -70,9 +71,9 @@ export function OverviewSection({ tenant, user, onNavigate }: Props) {
   for (const x of exams ?? []) {
     activity.push({
       icon: "file-text",
-      text: `${x.title} — ${x.status}`,
+      text: `${x.title} — ${examStatusLabel(x.status)}`,
       date: new Date(x.createdAt).getTime(),
-      tone: x.status === "published" ? "accent" : "neutral",
+      tone: x.status === "live" || x.status === "results_published" ? "accent" : "neutral",
     });
   }
   activity.sort((a, b) => b.date - a.date);

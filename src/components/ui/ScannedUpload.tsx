@@ -1,4 +1,5 @@
 import type { HTMLAttributes } from "react";
+import { MathText } from "../Math";
 
 export interface ScannedStep {
   text: string;
@@ -8,10 +9,12 @@ export interface ScannedStep {
 export interface ScannedUploadProps extends HTMLAttributes<HTMLDivElement> {
   steps?: ScannedStep[];
   label?: string;
+  /** Render each step's text through KaTeX, honoring `$...$` / `$$...$$` math spans. */
+  math?: boolean;
 }
 
 /** "SCANNED UPLOAD" inset panel: solution steps in serif italic; the wrong step crimson + underlined. */
-export function ScannedUpload({ steps = [], label = "Scanned Upload", style, ...rest }: ScannedUploadProps) {
+export function ScannedUpload({ steps = [], label = "Scanned Upload", math = false, style, ...rest }: ScannedUploadProps) {
   return (
     <div
       style={{
@@ -49,7 +52,7 @@ export function ScannedUpload({ steps = [], label = "Scanned Upload", style, ...
             textUnderlineOffset: 4,
           }}
         >
-          {s.text}
+          {math ? <MathText text={s.text} /> : s.text}
         </div>
       ))}
     </div>
