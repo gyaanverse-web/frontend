@@ -152,9 +152,11 @@ export function InvitesSection({ tenant }: Props) {
                     </button>
                   </div>
                 )}
-                <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--text-muted)" }}>
-                  In dev mode the invite link is also printed to the backend console.
-                </p>
+                {process.env.NODE_ENV !== "production" && (
+                  <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--text-muted)" }}>
+                    Local dev: the invite link is also printed to the backend console.
+                  </p>
+                )}
               </div>
             )}
           </div>

@@ -155,12 +155,18 @@ function SignupContent() {
 
             <p style={{ fontSize: 14, fontWeight: 600, margin: "0 0 8px", color: "var(--text-heading)" }}>Next steps</p>
             <ol style={{ fontSize: 14, margin: "0 0 16px", paddingLeft: 18, lineHeight: 1.8, color: "var(--text-body)" }}>
-              <li>Open your email and click the verification link.</li>
-              <li>
-                <strong style={{ color: "var(--text-heading)" }}>Dev mode:</strong> email is not sent — check the{" "}
-                <strong style={{ color: "var(--text-heading)" }}>backend console</strong> for the verification URL.
-              </li>
+              <li>Open your email and click the verification link. It expires in 1 hour.</li>
               <li>After verifying, sign in to accept your invite.</li>
+              <li>Can&apos;t find it? Check your spam folder.</li>
+              {/* Local-only hint — inline NODE_ENV so it is dead-coded out of
+                  deployed builds rather than shipped behind a runtime flag. */}
+              {process.env.NODE_ENV !== "production" && (
+                <li>
+                  <strong style={{ color: "var(--text-heading)" }}>Local dev only:</strong> if no mail server is
+                  running, the verification URL is printed to the{" "}
+                  <strong style={{ color: "var(--text-heading)" }}>backend console</strong>.
+                </li>
+              )}
             </ol>
 
             <Button

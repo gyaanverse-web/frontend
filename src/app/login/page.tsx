@@ -53,7 +53,13 @@ function LoginContent() {
   }, []);
 
   useEffect(() => {
-    if (params.get("registered") === "1") {
+    // Each flag is set by the page that redirects here, ordered latest-step
+    // first: /reset-password -> /verify-email -> /register.
+    if (params.get("reset") === "1") {
+      setNotice("Password updated. Sign in with your new password.");
+    } else if (params.get("verified") === "1") {
+      setNotice("Email verified. Sign in to continue.");
+    } else if (params.get("registered") === "1") {
       setNotice("Account created. Verify your email, then sign in below.");
     }
   }, [params]);
@@ -196,7 +202,7 @@ function LoginContent() {
             <label style={{ display: "block" }}>
               <span style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span className="gv-label" style={{ marginBottom: 0 }}>Password</span>
-                <Link href="/login" style={{ fontSize: 12, color: "var(--accent)" }}>Forgot?</Link>
+                <Link href="/forgot-password" style={{ fontSize: 12, color: "var(--accent)" }}>Forgot?</Link>
               </span>
               <input
                 type="password"
@@ -233,9 +239,13 @@ function LoginContent() {
             <Button type="submit" size="lg" disabled={phoneSending} style={{ width: "100%" }}>
               {phoneSending ? "Sending…" : "Send OTP"}
             </Button>
-            <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
-              In dev mode the OTP is printed to the backend console instead of being sent via SMS.
-            </p>
+            {/* Local-only hint — inline NODE_ENV so it is dead-coded out of
+                deployed builds, where the OTP really is sent via SMS. */}
+            {process.env.NODE_ENV !== "production" && (
+              <p style={{ fontSize: 12, color: "var(--text-muted)", margin: 0 }}>
+                Local dev: the OTP is printed to the backend console instead of being sent via SMS.
+              </p>
+            )}
           </form>
         )}
 

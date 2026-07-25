@@ -239,9 +239,13 @@ function AcceptInviteContent() {
                         </button>
                       </div>
                     </form>
-                    <p style={note}>
-                      In dev mode the OTP is printed to the backend console instead of being sent via SMS.
-                    </p>
+                    {/* Local-only hint — inline NODE_ENV so it is dead-coded
+                        out of deployed builds. */}
+                    {process.env.NODE_ENV !== "production" && (
+                      <p style={note}>
+                        Local dev: the OTP is printed to the backend console instead of being sent via SMS.
+                      </p>
+                    )}
                   </>
                 )}
 
@@ -249,7 +253,8 @@ function AcceptInviteContent() {
                 {phoneStep === "otp" && (
                   <>
                     <div style={{ marginBottom: "14px", padding: "6px 10px", background: "#f0fdf4", border: "1px solid #86efac", fontSize: "13px" }}>
-                      OTP sent to <strong>{phone}</strong>. Check the backend console in dev mode.
+                      OTP sent to <strong>{phone}</strong>.
+                      {process.env.NODE_ENV !== "production" && " Check the backend console."}
                     </div>
                     <p style={{ margin: "0 0 14px", fontSize: "13px", color: "#333" }}>
                       Enter the 6-digit code to verify your phone and accept the invite in one step.
