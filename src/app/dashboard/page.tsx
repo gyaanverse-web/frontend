@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { TENANT_ROOT_DOMAIN } from "@/lib/domain";
 import type { User, Tenant } from "./types";
 import { ROLE_LABEL, sh, cell, lc, inp, btnP, btnS } from "./styles";
 import { OverviewSection } from "./sections/OverviewSection";
@@ -23,8 +24,6 @@ import { StudentMyExams } from "@/components/student/StudentMyExams";
 import { StudentReportsHistory } from "@/components/student/StudentReportsHistory";
 import { StudentMyClasses } from "@/components/student/StudentMyClasses";
 import { StudentMarketplace } from "@/components/student/StudentMarketplace";
-
-type PendingCoaching = { name: string; slug: string };
 
 const ROLE_TO_BADGE: Record<string, BadgeRole> = {
   super_admin: "superadmin",
@@ -58,7 +57,6 @@ function DashboardInner() {
   const [user, setUser] = useState<User | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [noTenant, setNoTenant] = useState(false);
-  const [pending, setPending] = useState<PendingCoaching | null>(null);
   const [pageError, setPageError] = useState("");
 
   const goToScreen = (s: string) => router.push(`/dashboard?screen=${encodeURIComponent(s)}`);
@@ -87,15 +85,8 @@ function DashboardInner() {
         const t = tr.value.tenant;
         setTenant(t);
         setEditForm({ name: t.name, logoUrl: t.logoUrl ?? "" });
-        sessionStorage.removeItem("pendingCoaching");
       } else {
         setNoTenant(true);
-        try {
-          const raw = sessionStorage.getItem("pendingCoaching");
-          if (raw) setPending(JSON.parse(raw) as PendingCoaching);
-        } catch {
-          sessionStorage.removeItem("pendingCoaching");
-        }
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -155,11 +146,7 @@ function DashboardInner() {
   const isOwner = user.role === "coaching_owner";
   const canMembers = isOwner || user.role === "teacher";
 
-  const createHref = pending
-    ? `/create-coaching?name=${encodeURIComponent(pending.name)}&slug=${encodeURIComponent(pending.slug)}`
-    : "/create-coaching";
-
-  // ── No tenant / pending setup (standalone, no shell) ──────────────────────────
+  // ── No tenant (standalone, no shell) ──────────────────────────────────────────
 
   if (noTenant || !tenant) {
     return (
@@ -168,38 +155,14 @@ function DashboardInner() {
           <Logo size={24} />
         </Link>
         <div style={{ background: "#fff", border: "1px solid var(--border-light)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg)", padding: 36, width: "100%", maxWidth: 460 }}>
-          {pending ? (
-            <>
-              <Badge tone="warning">Setup pending</Badge>
-              <h2 style={{ fontSize: 24, margin: "14px 0 8px" }}>Finish setting up your institute.</h2>
-              <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-body)", marginBottom: 20 }}>
-                You registered <strong style={{ color: "var(--text-heading)" }}>{pending.name}</strong> ({pending.slug}) during sign-up. Complete setup to activate it.
-              </p>
-              <div style={{ display: "flex", gap: 10 }}>
-                <Button variant="app" arrow onClick={() => router.push(createHref)}>Complete setup</Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    sessionStorage.removeItem("pendingCoaching");
-                    setPending(null);
-                  }}
-                >
-                  Discard
-                </Button>
-              </div>
-            </>
-          ) : (
-            <>
-              <h2 style={{ fontSize: 24, margin: "0 0 8px" }}>No institute yet.</h2>
-              <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-body)", marginBottom: 20 }}>
-                You are not part of any coaching institute. Create your own or join one with a code.
-              </p>
-              <div style={{ display: "flex", gap: 10 }}>
-                <Button variant="app" arrow onClick={() => router.push(createHref)}>Create coaching</Button>
-                <Button variant="secondary" onClick={() => router.push("/join")}>Join coaching</Button>
-              </div>
-            </>
-          )}
+          <h2 style={{ fontSize: 24, margin: "0 0 8px" }}>No institute yet.</h2>
+          <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-body)", marginBottom: 20 }}>
+            You are not part of any coaching institute. Create your own or join one with a code.
+          </p>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button variant="app" arrow onClick={() => router.push("/create-coaching")}>Create coaching</Button>
+            <Button variant="secondary" onClick={() => router.push("/join")}>Join coaching</Button>
+          </div>
           <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border-light)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{user.name} · {user.email}</span>
             <button onClick={handleLogout} style={{ background: "none", border: "none", color: "var(--accent)", fontWeight: 600, fontSize: 13, cursor: "pointer", fontFamily: "var(--font-body)" }}>
@@ -322,7 +285,7 @@ function DashboardInner() {
             <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em", color: "var(--text-heading)" }}>
               {tenant.name}
             </span>
-            <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>{tenant.slug}.gyanverse.com</span>
+            <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>{tenant.slug}.{TENANT_ROOT_DOMAIN}</span>
           </div>
           <div style={{ flex: 1 }} />
           <Link href="/exams/public" className="gv-btn gv-btn--ghost gv-btn--sm"><span>Public mocks</span></Link>

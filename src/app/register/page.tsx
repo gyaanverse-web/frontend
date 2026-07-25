@@ -6,18 +6,10 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { Logo, Button } from "@/components/ui";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2;
 
 const PAGE_BG =
   "radial-gradient(ellipse 70% 50% at 50% 0%, #eef0fc 0%, var(--paper-50) 60%)";
-
-function toSlug(value: string): string {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 63);
-}
 
 function RegisterContent() {
   const router = useRouter();
@@ -28,24 +20,16 @@ function RegisterContent() {
   const [ownerName, setOwnerName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [instName, setInstName] = useState("");
-  const [slug, setSlug] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  function handleInstNameChange(value: string) {
-    setInstName(value);
-    setSlug(toSlug(value));
-  }
-
-  async function handleCreate() {
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
     setError("");
     setLoading(true);
     try {
       await api.post("/api/auth/sign-up/email", { name: ownerName, email, password });
-      // Persist coaching details so dashboard can complete setup after email verification
-      sessionStorage.setItem("pendingCoaching", JSON.stringify({ name: instName, slug }));
-      setStep(3);
+      setStep(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {
@@ -53,7 +37,7 @@ function RegisterContent() {
     }
   }
 
-  const STEPS: [string, string, string] = ["Your account", "Your institute", "Verify email"];
+  const STEPS: [string, string] = ["Your account", "Verify email"];
 
   const stepIndicator = (
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
@@ -117,7 +101,7 @@ function RegisterContent() {
       >
         <h2 style={{ fontSize: 28, marginBottom: 6 }}>Create your account.</h2>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 15, color: "var(--text-muted)", marginBottom: 28 }}>
-          Set up your coaching institute on Gyanverse.
+          Set up your coaching institute on Gyanverse. You&apos;ll name your institute right after signing in.
         </p>
 
         {/* Role selector — this flow registers a Coaching Owner; students sign up separately */}
@@ -169,14 +153,7 @@ function RegisterContent() {
 
         {/* ── Step 1: Owner account ─────────────────────────────────── */}
         {step === 1 && (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              setError("");
-              setStep(2);
-            }}
-            style={{ display: "flex", flexDirection: "column", gap: 16 }}
-          >
+          <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <label style={{ display: "block" }}>
               <span className="gv-label">Full name</span>
               <input className="gv-input" type="text" required minLength={2} maxLength={100} placeholder="e.g. Rajesh Sharma" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
@@ -189,8 +166,11 @@ function RegisterContent() {
               <span className="gv-label">Password</span>
               <input className="gv-input" type="password" required minLength={8} placeholder="Min. 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} />
             </label>
-            <Button type="submit" size="lg" arrow style={{ width: "100%", marginTop: 4 }}>
-              Next
+
+            {error && <ErrorNote>{error}</ErrorNote>}
+
+            <Button type="submit" size="lg" arrow disabled={loading} style={{ width: "100%", marginTop: 4 }}>
+              {loading ? "Creating…" : "Create account"}
             </Button>
             <p style={{ textAlign: "center", fontSize: 14, color: "var(--text-muted)", margin: 0 }}>
               Already have an account?{" "}
@@ -201,51 +181,8 @@ function RegisterContent() {
           </form>
         )}
 
-        {/* ── Step 2: Institute details ──────────────────────────────── */}
+        {/* ── Step 2: Verify email ───────────────────────────────────── */}
         {step === 2 && (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleCreate();
-            }}
-            style={{ display: "flex", flexDirection: "column", gap: 16 }}
-          >
-            <label style={{ display: "block" }}>
-              <span className="gv-label">Institute name</span>
-              <input className="gv-input" type="text" required minLength={2} maxLength={255} placeholder="e.g. Sharma Classes" value={instName} onChange={(e) => handleInstNameChange(e.target.value)} />
-            </label>
-            <label style={{ display: "block" }}>
-              <span className="gv-label">URL slug</span>
-              <input className="gv-input" type="text" required minLength={3} maxLength={63} pattern="^[a-z0-9-]+$" placeholder="sharma-classes" style={{ fontFamily: "var(--font-mono)" }} value={slug} onChange={(e) => setSlug(e.target.value)} />
-              <div className="gv-help">
-                Lowercase letters, numbers, hyphens only. Becomes{" "}
-                <strong style={{ color: "var(--text-body)" }}>{slug || "yourname"}.gyanverse.com</strong>.
-              </div>
-            </label>
-
-            {error && <ErrorNote>{error}</ErrorNote>}
-
-            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-              <Button
-                type="button"
-                variant="secondary"
-                size="lg"
-                onClick={() => {
-                  setError("");
-                  setStep(1);
-                }}
-              >
-                ← Back
-              </Button>
-              <Button type="submit" size="lg" arrow disabled={loading} style={{ flex: 1 }}>
-                {loading ? "Creating…" : "Create account"}
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {/* ── Step 3: Verify email ───────────────────────────────────── */}
-        {step === 3 && (
           <div>
             <div style={{ background: "var(--success-soft)", border: "1px solid rgba(16,185,129,0.35)", borderRadius: "var(--radius-md)", padding: "12px 14px", marginBottom: 16, fontSize: 14, color: "#0f7a5a" }}>
               <strong>Account created.</strong> A verification email has been sent to <strong>{email}</strong>.
@@ -258,12 +195,8 @@ function RegisterContent() {
                 <strong style={{ color: "var(--text-heading)" }}>Dev mode:</strong> email is not sent — check the{" "}
                 <strong style={{ color: "var(--text-heading)" }}>backend console</strong> for the verification URL.
               </li>
-              <li>After verifying, sign in to complete your coaching setup.</li>
+              <li>After verifying, sign in and name your coaching institute.</li>
             </ol>
-
-            <div style={{ borderTop: "1px solid var(--border-light)", paddingTop: 14, fontSize: 13, color: "var(--text-muted)", marginBottom: 16 }}>
-              Your institute details (<strong style={{ color: "var(--text-body)" }}>{instName || slug}</strong>) are saved and pre-filled after you sign in.
-            </div>
 
             <Button
               size="lg"

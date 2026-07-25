@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { api } from "@/lib/api";
+import { TENANT_ROOT_DOMAIN } from "@/lib/domain";
 import { Avatar } from "@/components/ui";
 import { NotificationBell } from "@/components/NotificationBell";
 import { AppSidebar, type AppNavKey } from "./AppSidebar";
@@ -68,7 +69,7 @@ export function TeacherShell({
             </span>
             {tenant?.slug && (
               <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>
-                {tenant.slug}.gyanverse.com
+                {tenant.slug}.{TENANT_ROOT_DOMAIN}
               </span>
             )}
           </div>

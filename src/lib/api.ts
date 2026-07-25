@@ -1,12 +1,12 @@
+import { slugFromHost, hasTenantContext } from "./domain";
+
 const FALLBACK_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 // SSR / no-subdomain fallback. In dev, prefer hitting the app via
 // http://<slug>.localhost:3000 — the slug is then auto-derived in the browser.
 const FALLBACK_TENANT_SLUG = process.env.NEXT_PUBLIC_TENANT_SLUG ?? "dev";
 
-// Reserved hostnames that must never be treated as tenant slugs. Mirrors the
-// backend's RESERVED_SUBDOMAINS list in tenant.middleware.ts.
-const RESERVED_SUBDOMAINS = new Set(["www", "api", "app", "admin", "auth", "static", "cdn"]);
+export { hasTenantContext };
 
 /**
  * Resolve the API base URL.
@@ -26,39 +26,14 @@ function resolveApiUrl(): string {
 }
 
 /**
- * Derive the tenant slug from the current browser hostname.
- *   niazi.lvh.me        -> "niazi"
- *   niazi.gyanverse.com -> "niazi"
- *   lvh.me / gyanverse.com / app.<root> -> FALLBACK_TENANT_SLUG
- * Returns the fallback on SSR (no window) so callers always get a string.
+ * Derive the tenant slug from the current browser hostname, falling back to
+ * FALLBACK_TENANT_SLUG on the app/root host or during SSR so the X-Tenant-Slug
+ * header is always a string. See `slugFromHost` in lib/domain.ts for the
+ * environment-aware resolution rules.
  */
 export function resolveTenantSlug(): string {
   if (typeof window === "undefined") return FALLBACK_TENANT_SLUG;
-
-  const host = window.location.hostname;
-  if (host === "lvh.me") return FALLBACK_TENANT_SLUG;
-
-  const parts = host.split(".");
-  // Need at least <slug>.<root> — e.g. "niazi.lvh.me" or "niazi.gyanverse.com"
-  if (parts.length < 2) return FALLBACK_TENANT_SLUG;
-
-  const candidate = parts[0];
-  if (RESERVED_SUBDOMAINS.has(candidate)) return FALLBACK_TENANT_SLUG;
-  return candidate;
-}
-
-/**
- * Returns true when the current page is on a tenant subdomain (e.g. niazi.lvh.me
- * or niazi.gyanverse.com). False on the main app domain (app.lvh.me, app.gyanverse.com).
- * Always false during SSR.
- */
-export function hasTenantContext(): boolean {
-  if (typeof window === "undefined") return false;
-  const host = window.location.hostname;
-  if (host === "lvh.me" || host === "localhost") return false;
-  const parts = host.split(".");
-  if (parts.length < 2) return false;
-  return !RESERVED_SUBDOMAINS.has(parts[0]);
+  return slugFromHost(window.location.hostname) ?? FALLBACK_TENANT_SLUG;
 }
 
 export class ApiError extends Error {
