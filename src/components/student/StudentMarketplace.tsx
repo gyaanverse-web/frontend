@@ -156,7 +156,7 @@ export function StudentMarketplace({ user, tenant }: { user: ShellUser; tenant: 
   const gradeOptions = ["All grades", ...grades.map((g) => `Grade ${g}`)];
 
   return (
-    <TeacherShell tenant={tenant} user={user} active="marketplace">
+    <TeacherShell tenant={tenant} user={user} active="marketplace" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>

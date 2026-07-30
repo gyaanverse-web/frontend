@@ -3,23 +3,34 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Logo, Button } from "@/components/ui";
 
 // Coaching join codes are 8 chars from an unambiguous alphabet (no 0/O/1/I),
 // mirroring CODE_CHARS in the backend membership.service.ts.
 const CODE_RE = /^[A-HJ-NP-Z2-9]{8}$/;
 
+const PAGE_BG =
+  "radial-gradient(ellipse 70% 50% at 50% 0%, #eef0fc 0%, var(--paper-50) 60%)";
+
 export default function JoinCoachingPage() {
   const router = useRouter();
-  const [code, setCode]     = useState("");
-  const [error, setError]   = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
 
   const normalized = code.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const complete = normalized.length === 8;
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     if (!CODE_RE.test(normalized)) {
-      setError("Enter the 8-character join code your coaching gave you.");
+      // Length is enforced by the input; anything left is a disallowed character
+      // from the ambiguous set (0/O/1/I), which is worth calling out by name.
+      setError(
+        normalized.length < 8
+          ? "Join codes are 8 characters long."
+          : "That code contains characters we don't use. Check for 0/O and 1/I mix-ups.",
+      );
       return;
     }
     // Hand off to the preview + confirm screen, which validates the code
@@ -28,67 +39,141 @@ export default function JoinCoachingPage() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        background: PAGE_BG,
+        padding: "48px 24px",
+      }}
+    >
+      <Link href="/" style={{ marginBottom: 32 }}>
+        <Logo size={24} />
+      </Link>
 
-      <header style={{ background: "#1a2e4a", color: "#fff", padding: "8px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontWeight: "bold", fontSize: "15px", letterSpacing: "0.5px" }}>GYANVERSE</span>
-        <Link href="/dashboard" style={{ color: "#aac4e8", fontSize: "13px" }}>← Dashboard</Link>
-      </header>
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid var(--border-light)",
+          borderRadius: "var(--radius-lg)",
+          boxShadow: "var(--shadow-lg)",
+          padding: 40,
+          width: "100%",
+          maxWidth: 440,
+        }}
+      >
+        <p
+          style={{
+            margin: "0 0 10px",
+            fontSize: 12,
+            fontWeight: 700,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "var(--accent)",
+          }}
+        >
+          Join a coaching
+        </p>
+        <h2 style={{ fontSize: 26, marginBottom: 8 }}>Enter your join code.</h2>
+        <p
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: 14,
+            color: "var(--text-muted)",
+            margin: "0 0 26px",
+            lineHeight: 1.6,
+          }}
+        >
+          Your coaching institute shares an 8-character code. Entering it enrols you as a student
+          so their batches, exams and results appear in your dashboard.
+        </p>
 
-      <main style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
-        <div style={{ background: "#fff", border: "1px solid #aaa", width: "100%", maxWidth: "400px" }}>
+        <form onSubmit={handleSubmit}>
+          <label style={{ display: "block" }}>
+            <span className="gv-label">Join code</span>
+            <input
+              type="text"
+              required
+              autoFocus
+              autoCapitalize="characters"
+              autoComplete="off"
+              spellCheck={false}
+              value={code}
+              onChange={(e) =>
+                setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))
+              }
+              placeholder="ABCD2345"
+              maxLength={8}
+              className="gv-input"
+              style={{
+                textAlign: "center",
+                fontSize: 26,
+                fontWeight: 700,
+                letterSpacing: 10,
+                textIndent: 10,
+                fontFamily: "var(--font-mono)",
+                height: 62,
+              }}
+            />
+          </label>
 
-          <div style={{ background: "#1a2e4a", color: "#fff", padding: "5px 10px", fontSize: "12px", fontWeight: "bold", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-            Join Coaching Institute
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              margin: "8px 0 0",
+              fontSize: 12,
+              color: "var(--text-muted)",
+            }}
+          >
+            <span>Letters and digits only — no 0, O, 1 or I.</span>
+            <span style={{ fontVariantNumeric: "tabular-nums" }}>{normalized.length}/8</span>
           </div>
 
-          <div style={{ padding: "16px" }}>
-            <p style={{ margin: "0 0 12px", fontSize: "13px", color: "#555" }}>
-              Enter the join code your coaching owner shared with you.
+          {error && (
+            <p
+              style={{
+                margin: "14px 0 0",
+                padding: "10px 14px",
+                background: "var(--danger-soft)",
+                border: "1px solid rgba(244,63,94,0.35)",
+                borderRadius: "var(--radius-md)",
+                fontSize: 13,
+                color: "var(--danger)",
+              }}
+            >
+              {error}
             </p>
-            <form onSubmit={handleSubmit}>
-              <input
-                type="text"
-                required
-                autoFocus
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8))}
-                placeholder="ABC12345"
-                maxLength={8}
-                style={{ width: "100%", border: "1px solid #666", padding: "8px 10px", background: "#fff", color: "#111", fontFamily: "monospace", fontSize: "20px", fontWeight: "bold", letterSpacing: "4px", textAlign: "center", textTransform: "uppercase" }}
-              />
-              <span style={{ display: "block", marginTop: "4px", fontSize: "11px", color: "#555" }}>
-                Have a full invite link instead? Just open it in your browser.
-              </span>
+          )}
 
-              {error && (
-                <p style={{ margin: "8px 0 0 0", color: "#c00", fontSize: "13px", border: "1px solid #c00", padding: "4px 8px", background: "#fff5f5" }}>
-                  {error}
-                </p>
-              )}
+          <Button
+            type="submit"
+            size="lg"
+            disabled={!complete}
+            style={{ width: "100%", marginTop: 20 }}
+          >
+            Continue
+          </Button>
+        </form>
 
-              <div style={{ marginTop: "14px", display: "flex", gap: "8px" }}>
-                <button
-                  type="submit"
-                  style={{ background: "#1a4db8", color: "#fff", border: "1px solid #1a4db8", padding: "5px 20px", fontWeight: "bold", cursor: "pointer" }}
-                >
-                  Continue
-                </button>
-                <Link
-                  href="/dashboard"
-                  style={{ background: "#fff", color: "#444", border: "1px solid #aaa", padding: "5px 16px", textDecoration: "none", fontSize: "13px" }}
-                >
-                  Cancel
-                </Link>
-              </div>
-            </form>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0" }}>
+          <span style={{ flex: 1, height: 1, background: "var(--border-light)" }} />
+          <span style={{ fontSize: 12, color: "var(--text-muted)" }}>or</span>
+          <span style={{ flex: 1, height: 1, background: "var(--border-light)" }} />
         </div>
-      </main>
 
-      <footer style={{ background: "#ddd", borderTop: "1px solid #aaa", padding: "6px 16px", fontSize: "12px", color: "#333" }}>
-        &copy; {new Date().getFullYear()} Gyanverse &mdash; All rights reserved
-      </footer>
+        <p style={{ textAlign: "center", fontSize: 13.5, color: "var(--text-body)", margin: 0, lineHeight: 1.6 }}>
+          Got a full invite link instead? Just open it — it does this for you.
+          <br />
+          <Link href="/dashboard" style={{ color: "var(--accent)", fontWeight: 600 }}>
+            Back to dashboard
+          </Link>
+        </p>
+      </div>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
 import { Card, Badge, Button, Icon, Tabs } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui";
+import { NoCoachingPanel } from "./StudentBits";
 
 type ShellUser = { name: string; role?: string };
 type ShellTenant = { name: string; slug: string } | null;
@@ -163,12 +164,17 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
 
   const [exams, setExams] = useState<ApiExam[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Seeded from the tenant: with no coaching there are no tenant-scoped exams to
+  // fetch, so the screen goes straight to its "join a coaching" state.
+  const [loading, setLoading] = useState(Boolean(tenant));
   const [error, setError] = useState("");
   const [tab, setTab] = useState<Tab>("To do");
 
   useEffect(() => {
     let cancelled = false;
+    // Skip the tenant-scoped calls entirely with no coaching — they'd 400 on
+    // the missing tenant and surface as a bogus error box.
+    if (!tenant) return;
     Promise.all([
       api.get<{ exams: ApiExam[] }>("/tenant/exams"),
       api.get<{ subjects: Subject[] }>("/tenant/subjects").catch(() => ({ subjects: [] as Subject[] })),
@@ -181,7 +187,7 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Could not load your exams."); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [tenant]);
 
   const subjectById = useMemo(() => new Map(subjects.map((s) => [s.id, s.name])), [subjects]);
   const withState = useMemo(() => exams.map((e) => ({ e, state: deriveState(e) })), [exams]);
@@ -204,7 +210,7 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
   const labelToTab = (label: string): Tab => TABS[tabLabels.indexOf(label)] ?? "To do";
 
   return (
-    <TeacherShell tenant={tenant} user={user} active="exams">
+    <TeacherShell tenant={tenant} user={user} active="exams" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>
@@ -213,6 +219,11 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
           <h2 style={{ fontSize: 26, margin: 0 }}>My exams</h2>
         </div>
 
+        {!tenant && (
+          <NoCoachingPanel body="Exams here are the ones your coaching assigns to your batch. Join one with its code to see them — public mocks are always open to you in the meantime." />
+        )}
+
+        {tenant && <>
         <Tabs
           tabs={tabLabels}
           value={tabLabels[TABS.indexOf(tab)]}
@@ -257,6 +268,7 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
             ))}
           </div>
         )}
+        </>}
       </div>
     </TeacherShell>
   );

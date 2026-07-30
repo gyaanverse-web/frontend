@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { api } from "@/lib/api";
 import { TENANT_ROOT_DOMAIN } from "@/lib/domain";
@@ -26,6 +27,12 @@ export interface TeacherShellProps {
   action?: ReactNode;
   /** Skip the padded page header + scroll container — the screen owns its full layout. */
   headerless?: boolean;
+  /**
+   * Student who has not joined any coaching. Distinguishes "no institute" from
+   * "institute still loading", which both arrive as `tenant == null`, and swaps
+   * the top-bar identity for a join call-to-action.
+   */
+  noCoaching?: boolean;
   children: ReactNode;
 }
 
@@ -40,6 +47,7 @@ export function TeacherShell({
   eyebrow,
   action,
   headerless = false,
+  noCoaching = false,
   children,
 }: TeacherShellProps) {
   const router = useRouter();
@@ -65,15 +73,24 @@ export function TeacherShell({
         <header className="gv-topbar" style={{ position: "sticky", top: 0, zIndex: 5 }}>
           <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
             <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em", color: "var(--text-heading)" }}>
-              {tenant?.name ?? "Loading…"}
+              {noCoaching ? "Gyanverse" : tenant?.name ?? "Loading…"}
             </span>
-            {tenant?.slug && (
+            {noCoaching ? (
+              <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>
+                Not in a coaching yet
+              </span>
+            ) : tenant?.slug ? (
               <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>
                 {tenant.slug}.{TENANT_ROOT_DOMAIN}
               </span>
-            )}
+            ) : null}
           </div>
           <div style={{ flex: 1 }} />
+          {noCoaching && (
+            <Link href="/join" className="gv-btn gv-btn--secondary gv-btn--sm">
+              <span>Join a coaching</span>
+            </Link>
+          )}
           <NotificationBell />
           {userName && (
             <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 4 }}>

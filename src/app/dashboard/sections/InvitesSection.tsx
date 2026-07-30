@@ -21,6 +21,8 @@ export function InvitesSection({ tenant }: Props) {
   const [sendMsg, setSendMsg]           = useState("");
   const [sendErr, setSendErr]           = useState("");
   const [sentLink, setSentLink]         = useState<string | null>(null);
+  const [sentVia, setSentVia]           = useState<"email" | "phone">("email");
+  const [sentTo, setSentTo]             = useState("");
   const [linkCopied, setLinkCopied]     = useState(false);
 
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
@@ -51,11 +53,14 @@ export function InvitesSection({ tenant }: Props) {
         { contact, contactType },
         { tenant: tenant.slug },
       );
+      const sentContact = contact;
       setContact("");
+      setSentVia(via);
+      setSentTo(sentContact);
       setSendMsg(
         via === "email"
-          ? "Invite created — an email was sent to the teacher."
-          : "Invite created. SMS delivery isn't automated yet — copy the link below and send it to the teacher yourself.",
+          ? `Invitation emailed to ${sentContact}. It expires in 48 hours.`
+          : "Invite created — but SMS delivery isn't automated yet, so send this link to the teacher yourself. It expires in 48 hours.",
       );
       setSentLink(`${window.location.origin}/accept-invite?token=${res.invite.token}`);
       load();
@@ -140,20 +145,45 @@ export function InvitesSection({ tenant }: Props) {
             </form>
             {sendErr && <p style={{ margin: "4px 0 0", fontSize: "12px", color: "var(--danger)" }}>{sendErr}</p>}
             {sendMsg && (
-              <div style={{ margin: "6px 0 0" }}>
-                <p style={{ margin: 0, fontSize: "12px", color: "var(--success)" }}>{sendMsg}</p>
+              <div
+                style={{
+                  margin: "8px 0 0",
+                  padding: "10px 12px",
+                  borderRadius: "var(--radius-md)",
+                  border: sentVia === "email"
+                    ? "1px solid rgba(16,185,129,0.35)"
+                    : "1px solid var(--border-default)",
+                  background: sentVia === "email" ? "var(--success-soft)" : "var(--surface-card)",
+                }}
+              >
+                <p style={{ margin: 0, fontSize: "12px", fontWeight: 600, color: sentVia === "email" ? "#0f7a5a" : "var(--text-heading)" }}>
+                  {sentVia === "email" ? "✓ " : ""}{sendMsg}
+                </p>
                 {sentLink && (
-                  <div style={{ marginTop: "6px", display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
-                    <code style={{ fontSize: "11px", background: "var(--bg-section-alt)", border: "1px solid var(--border-default)", borderRadius: "4px", padding: "3px 6px", maxWidth: "280px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {sentLink}
-                    </code>
-                    <button type="button" onClick={() => copyInviteLink(sentLink)} style={{ ...btnS, fontSize: "11px", padding: "2px 8px" }}>
-                      {linkCopied ? "Copied!" : "Copy link"}
-                    </button>
-                  </div>
+                  <>
+                    {/* For an emailed invite the link is a fallback (bounced mail,
+                        spam folder); for a phone invite it is the only channel. */}
+                    <p style={{ margin: "8px 0 4px", fontSize: "11px", color: "var(--text-muted)" }}>
+                      {sentVia === "email"
+                        ? `Didn't reach ${sentTo}? Share this link directly:`
+                        : "Invite link:"}
+                    </p>
+                    <div style={{ display: "flex", gap: "6px", alignItems: "center", flexWrap: "wrap" }}>
+                      <code style={{ fontSize: "11px", background: "var(--bg-section-alt)", border: "1px solid var(--border-default)", borderRadius: "4px", padding: "4px 8px", maxWidth: "300px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {sentLink}
+                      </code>
+                      <button
+                        type="button"
+                        onClick={() => copyInviteLink(sentLink)}
+                        style={{ ...(sentVia === "phone" ? btnP : btnS), fontSize: "11px", padding: "4px 12px" }}
+                      >
+                        {linkCopied ? "Copied!" : "Copy link"}
+                      </button>
+                    </div>
+                  </>
                 )}
                 {process.env.NODE_ENV !== "production" && (
-                  <p style={{ margin: "4px 0 0", fontSize: "11px", color: "var(--text-muted)" }}>
+                  <p style={{ margin: "6px 0 0", fontSize: "11px", color: "var(--text-muted)" }}>
                     Local dev: the invite link is also printed to the backend console.
                   </p>
                 )}

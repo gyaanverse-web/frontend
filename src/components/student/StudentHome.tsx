@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
 import { Button, Card, Badge, Icon, StatCard } from "@/components/ui";
-import { ProgressRing, ScoreTrendChart } from "./StudentBits";
+import { ProgressRing, ScoreTrendChart, JoinCoachingCard } from "./StudentBits";
 
 type ShellUser = { name: string; role?: string };
 type ShellTenant = { name: string; slug: string } | null;
@@ -104,7 +104,7 @@ export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTe
   const recent = reports.slice(0, 3);
 
   return (
-    <TeacherShell tenant={tenant} user={user} active="home">
+    <TeacherShell tenant={tenant} user={user} active="home" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
           {/* ── Greeting ─────────────────────────────────────────────────── */}
           <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginBottom: 4 }}>
@@ -116,12 +116,18 @@ export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTe
           <p style={{ fontSize: 15, margin: "2px 0 22px", color: "var(--text-body)" }}>
             {loading
               ? "Loading your exams…"
-              : liveCount > 0
-                ? <>You have <strong style={{ color: "var(--text-heading)" }}>{liveCount} exam{liveCount !== 1 ? "s" : ""}</strong> open right now.</>
-                : upcomingCount > 0
-                  ? <><strong style={{ color: "var(--text-heading)" }}>{upcomingCount} exam{upcomingCount !== 1 ? "s" : ""}</strong> coming up — check the schedule below.</>
-                  : "No exams due right now — nice time to review your results."}
+              : !tenant
+                ? "You're set up and ready — take any public mock below, or join your coaching to get their exams too."
+                : liveCount > 0
+                  ? <>You have <strong style={{ color: "var(--text-heading)" }}>{liveCount} exam{liveCount !== 1 ? "s" : ""}</strong> open right now.</>
+                  : upcomingCount > 0
+                    ? <><strong style={{ color: "var(--text-heading)" }}>{upcomingCount} exam{upcomingCount !== 1 ? "s" : ""}</strong> coming up — check the schedule below.</>
+                    : "No exams due right now — nice time to review your results."}
           </p>
+
+          {/* Coaching-less students get the join prompt here rather than as a
+              blocking screen — everything below already works without one. */}
+          {!loading && !tenant && <JoinCoachingCard />}
 
           {/* ── Continue where you left off ──────────────────────────────── */}
           {inProgress && (

@@ -121,7 +121,7 @@ export function StudentReportsHistory({ user, tenant }: { user: ShellUser; tenan
   }
 
   return (
-    <TeacherShell tenant={tenant} user={user} active="results">
+    <TeacherShell tenant={tenant} user={user} active="results" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>
@@ -168,7 +168,7 @@ export function StudentReportsHistory({ user, tenant }: { user: ShellUser; tenan
 export function StudentReportsEmpty({ user, tenant }: { user: ShellUser; tenant: ShellTenant }) {
   const router = useRouter();
   return (
-    <TeacherShell tenant={tenant} user={user} active="results">
+    <TeacherShell tenant={tenant} user={user} active="results" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>

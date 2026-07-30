@@ -146,9 +146,20 @@ function DashboardInner() {
   const isOwner = user.role === "coaching_owner";
   const canMembers = isOwner || user.role === "teacher";
 
-  // ── No tenant (standalone, no shell) ──────────────────────────────────────────
+  // ── No tenant ────────────────────────────────────────────────────────────────
+  // Only owners and teachers are blocked here. An owner who just registered has
+  // no institute until they create one, so "Create / join" *is* their next step.
+  //
+  // A student is different: the whole public-exam journey — /exams/public,
+  // /exams/:id, session start/submit/results and /reports — is authenticated but
+  // tenant-free on the backend, so a student with no coaching can browse the
+  // marketplace and sit mocks today. Gating them behind "create a coaching"
+  // asked for something they don't need and can't sensibly do. They fall through
+  // to their own dashboard with tenant === null and pick up a join code if and
+  // when a coaching gives them one.
+  const isStudent = user.role === "student";
 
-  if (noTenant || !tenant) {
+  if ((noTenant || !tenant) && !isStudent) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "radial-gradient(ellipse 70% 50% at 50% 0%, #eef0fc 0%, var(--paper-50) 60%)", padding: "48px 24px" }}>
         <Link href="/" style={{ marginBottom: 28 }}>
@@ -176,14 +187,12 @@ function DashboardInner() {
   }
 
   // ── Student home ──────────────────────────────────────────────────────────────
-  // Students land on the redesigned Home dashboard. The legacy in-page sections
-  // (Exams, Batches) are still reachable via ?screen= from the student nav until
-  // their own redesigns land.
-  if (user.role === "student") {
+  // Students always render a student screen — this branch is exhaustive. It has
+  // to be: the owner/teacher shell below dereferences `tenant`, which is legally
+  // null for a student who hasn't joined a coaching. Every student screen takes
+  // `tenant` as nullable and degrades to a "join a coaching" state.
+  if (isStudent) {
     const screen = searchParams.get("screen");
-    if (!screen || screen === "Home" || screen === "Overview") {
-      return <StudentHome user={user} tenant={tenant} />;
-    }
     if (screen === "Exams") {
       return <StudentMyExams user={user} tenant={tenant} />;
     }
@@ -196,7 +205,12 @@ function DashboardInner() {
     if (screen === "Marketplace") {
       return <StudentMarketplace user={user} tenant={tenant} />;
     }
+    return <StudentHome user={user} tenant={tenant} />;
   }
+
+  // Past this point the user is an owner or teacher, so the gate above
+  // guaranteed a tenant. This narrows it for TypeScript.
+  if (!tenant) return null;
 
   // ── Active screen derived from URL (sidebar is the shared AppSidebar) ─────────
 

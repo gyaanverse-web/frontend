@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
 import { Card, Badge, Button, Icon, Input } from "@/components/ui";
+import { NoCoachingPanel } from "./StudentBits";
 
 type ShellUser = { name: string; role?: string };
 type ShellTenant = { name: string; slug: string } | null;
@@ -55,7 +56,7 @@ export function StudentMyClasses({ user, tenant }: { user: ShellUser; tenant: Sh
   const router = useRouter();
 
   return (
-    <TeacherShell tenant={tenant} user={user} active="classes">
+    <TeacherShell tenant={tenant} user={user} active="classes" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>
@@ -64,6 +65,10 @@ export function StudentMyClasses({ user, tenant }: { user: ShellUser; tenant: Sh
           <h2 style={{ fontSize: 26, margin: 0 }}>My classes</h2>
         </div>
 
+        {!tenant ? (
+          <NoCoachingPanel body="Batches belong to a coaching institute. Once you join one with its code, the batches you're enrolled in show up here." />
+        ) : (
+          <>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginBottom: 26 }}>
           {CLASSES.map((c) => (
             <ClassCard key={c.name} c={c} />
@@ -83,6 +88,8 @@ export function StudentMyClasses({ user, tenant }: { user: ShellUser; tenant: Sh
           <Input placeholder="e.g. PHY-2K4X" wrapperStyle={{ width: 200 }} style={{ width: "100%" }} />
           <Button variant="app" onClick={() => router.push("/join")}>Join</Button>
         </Card>
+          </>
+        )}
       </div>
     </TeacherShell>
   );

@@ -1,6 +1,63 @@
 "use client";
 
+import Link from "next/link";
 import type { CSSProperties } from "react";
+import { Card, Icon } from "@/components/ui";
+
+/**
+ * Shown on the screens that genuinely need a coaching (My Exams, My Classes)
+ * when the student hasn't joined one. Deliberately not a blocker: it explains
+ * what a join code is and points at the marketplace, which works standalone.
+ */
+export function NoCoachingPanel({
+  title = "You haven't joined a coaching yet",
+  body = "Exams and batches are assigned by your coaching institute. Ask yours for their 8-character join code — you can enter it any time.",
+}: {
+  title?: string;
+  body?: string;
+}) {
+  return (
+    <Card padding={0} style={{ overflow: "hidden" }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", gap: 12, padding: "56px 40px" }}>
+        <div style={{ width: 64, height: 64, borderRadius: "50%", background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Icon name="graduation-cap" size={28} style={{ color: "var(--accent)" }} />
+        </div>
+        <h3 style={{ margin: 0, fontSize: 19, color: "var(--text-heading)" }}>{title}</h3>
+        <p style={{ margin: 0, maxWidth: 440, fontSize: 14, lineHeight: 1.6, color: "var(--text-body)" }}>{body}</p>
+        <div style={{ display: "flex", gap: 10, marginTop: 6 }}>
+          <Link href="/join" className="gv-btn gv-btn--app gv-btn--md">
+            <span>Enter a join code</span>
+          </Link>
+          <Link href="/dashboard?screen=Marketplace" className="gv-btn gv-btn--secondary gv-btn--md">
+            <span>Browse public mocks</span>
+          </Link>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Compact inline version of the same prompt, for the Home dashboard. */
+export function JoinCoachingCard() {
+  return (
+    <Card padding={22} style={{ display: "flex", alignItems: "center", gap: 18, marginBottom: 28, borderColor: "var(--accent)" }}>
+      <div style={{ width: 42, height: 42, borderRadius: 11, background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+        <Icon name="graduation-cap" size={21} style={{ color: "var(--accent)" }} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 16, color: "var(--text-heading)" }}>
+          Got a join code from your coaching?
+        </div>
+        <p style={{ fontSize: 13.5, margin: "2px 0 0", color: "var(--text-body)" }}>
+          Enter it to get your batches, assigned exams and results in one place.
+        </p>
+      </div>
+      <Link href="/join" className="gv-btn gv-btn--app gv-btn--md">
+        <span>Join a coaching</span>
+      </Link>
+    </Card>
+  );
+}
 
 /** Circular progress ring — conic-gradient arc with a centred label. */
 export function ProgressRing({ pct = 46, size = 56, label }: { pct?: number; size?: number; label?: React.ReactNode }) {
