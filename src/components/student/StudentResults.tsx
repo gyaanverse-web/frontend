@@ -188,8 +188,8 @@ export function StudentResults({ examId, sessionId }: { examId: string; sessionI
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, result?.id]);
 
-  const backToExams = () => router.push("/dashboard?screen=Exams");
-  const toResults = () => router.push("/dashboard?screen=Results");
+  const backToExams = () => router.push("/student/exams");
+  const toResults = () => router.push("/student/results");
 
   if (loading) {
     return (
@@ -271,7 +271,7 @@ export function StudentResults({ examId, sessionId }: { examId: string; sessionI
             <p style={{ margin: 0, fontSize: 13.5 }}>Attempt #{result.attemptNumber} · Submitted {submitted}</p>
           </div>
           <div style={{ display: "flex", gap: 10 }}>
-            <Button variant="secondary" onClick={() => router.push(`/exams/${examId}/intro`)}>Retake</Button>
+            <Button variant="secondary" onClick={() => router.push(`/student/exams/${examId}/intro`)}>Retake</Button>
             <Button variant="ghost" onClick={toResults}>See all my reports</Button>
           </div>
         </div>
@@ -340,7 +340,7 @@ export function StudentResults({ examId, sessionId }: { examId: string; sessionI
         })}
 
         <div style={{ display: "flex", gap: 10, marginTop: 26, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          <Button variant="secondary" onClick={() => router.push(`/exams/${examId}/intro`)}>Retake</Button>
+          <Button variant="secondary" onClick={() => router.push(`/student/exams/${examId}/intro`)}>Retake</Button>
           <Button variant="app" onClick={toResults}>See all my reports</Button>
         </div>
       </div>

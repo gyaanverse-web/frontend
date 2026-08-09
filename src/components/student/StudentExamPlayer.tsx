@@ -322,7 +322,7 @@ export function StudentExamPlayer({ examId }: { examId: string }) {
       await api.post(`/sessions/${session.id}/submit`, {});
       if (timerRef.current) clearInterval(timerRef.current);
       localStorage.removeItem(`exam_${examId}_sessionId`);
-      router.push(`/exams/${examId}/result?session=${session.id}`);
+      router.push(`/student/exams/${examId}/result?session=${session.id}`);
     } catch (e) {
       setPageError(e instanceof Error ? e.message : "Failed to submit");
       setSubmitting(false);
@@ -398,7 +398,7 @@ export function StudentExamPlayer({ examId }: { examId: string }) {
   if (loading) {
     return (
       <FocusPage>
-        <StudentFocusStrip title="Loading attempt…" onBack={() => router.push("/dashboard?screen=Exams")} />
+        <StudentFocusStrip title="Loading attempt…" onBack={() => router.push("/student/exams")} />
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: 14 }}>Preparing your exam…</div>
       </FocusPage>
     );
@@ -407,10 +407,10 @@ export function StudentExamPlayer({ examId }: { examId: string }) {
   if (pageError || !exam || !session) {
     return (
       <FocusPage>
-        <StudentFocusStrip title="Exam" onBack={() => router.push("/dashboard?screen=Exams")} />
+        <StudentFocusStrip title="Exam" onBack={() => router.push("/student/exams")} />
         <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 40 }}>
           <p style={{ color: "var(--danger)", fontSize: 14.5 }}>{pageError || "Attempt unavailable."}</p>
-          <Button variant="app" onClick={() => router.push("/dashboard?screen=Exams")}>Back to my exams</Button>
+          <Button variant="app" onClick={() => router.push("/student/exams")}>Back to my exams</Button>
         </div>
       </FocusPage>
     );
@@ -430,7 +430,7 @@ export function StudentExamPlayer({ examId }: { examId: string }) {
         timerTone={timerTone}
         saved={saving ? "Saving…" : savedFlag ? "Saved" : null}
         backLabel="My Exams"
-        onBack={() => router.push("/dashboard?screen=Exams")}
+        onBack={() => router.push("/student/exams")}
       />
       <div style={{ flex: 1, display: "flex", gap: 24, padding: 28, flexWrap: "wrap", alignItems: "flex-start" }}>
         <Card padding={28} style={{ flex: 1, minWidth: 320 }}>

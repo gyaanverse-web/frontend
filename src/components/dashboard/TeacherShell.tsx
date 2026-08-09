@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { api } from "@/lib/api";
+import { invalidateSession } from "@/lib/sessionStore";
 import { TENANT_ROOT_DOMAIN } from "@/lib/domain";
 import { Avatar } from "@/components/ui";
 import { NotificationBell } from "@/components/NotificationBell";
 import { AppSidebar, type AppNavKey } from "./AppSidebar";
+import type { TenantRole } from "@/lib/useTenantSession";
 
 /** Nav keys identify the active route so the sidebar highlights correctly. */
 export type TeacherNavKey = AppNavKey;
@@ -16,7 +18,17 @@ export interface TeacherShellProps {
   /** Institute name shown in the top bar; falls back to a placeholder while loading. */
   tenant?: { name: string; slug: string } | null;
   /** Signed-in user for the top-bar identity + avatar. */
-  user?: { name: string; role?: string } | null;
+  user?: { name: string } | null;
+  /**
+   * The role whose sidebar to render — pass `displayRole` from `useTenantSession`
+   * (or a literal for a screen that only one role can ever reach).
+   *
+   * REQUIRED, and `null` renders a skeleton rather than a menu. It used to be
+   * optional with a `?? "teacher"` fallback, which meant every screen that
+   * forgot it — all five student screens — showed students the teacher's
+   * navigation. Keeping it required makes that a compile error instead.
+   */
+  role: TenantRole | string | null;
   /** Which sidebar item is highlighted. */
   active: AppNavKey;
   /** Page heading (omit together with `headerless` for full-bleed screens). */
@@ -42,6 +54,7 @@ export interface TeacherShellProps {
 export function TeacherShell({
   tenant,
   user,
+  role,
   active,
   title,
   eyebrow,
@@ -58,6 +71,9 @@ export function TeacherShell({
     } catch {
       /* ignore — navigate away regardless */
     }
+    // router.push is a client-side nav, so the module cache survives it — the
+    // signed-out user would otherwise keep a cached session for a full minute.
+    invalidateSession();
     router.push("/login");
   }
 
@@ -66,7 +82,7 @@ export function TeacherShell({
   return (
     <div style={{ display: "flex", width: "100%", minHeight: "100vh", background: "var(--bg-page)" }}>
       {/* ── Sidebar (shared, identical everywhere) ───────────────────────── */}
-      <AppSidebar role={user?.role ?? "teacher"} activeKey={active} onLogout={handleLogout} />
+      <AppSidebar role={role} activeKey={active} onLogout={handleLogout} />
 
       {/* ── Main column ─────────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { useUrlState } from "@/lib/useUrlState";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
 import { Card, Badge, Button, Icon, Tabs } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui";
@@ -26,7 +27,7 @@ type ApiExam = {
   title: string;
   durationMins: number;
   subjectId: string | null;
-  status: string; // scheduled | live | under_evaluation | results_published | completed
+  status: string; // scheduled | live | under_evaluation | ready_to_publish | completed
   totalMarks: number;
   maxAttempts: number;
   scheduledAt: string | null;
@@ -70,11 +71,12 @@ function deriveState(e: ApiExam): StudentExamState {
     if (sessions.length >= e.maxAttempts) return "Submitted";
     return "Not started";
   }
-  // Post-live states
-  if (e.status === "results_published" || e.status === "completed") {
+  // Results are out only at `completed` — publishing is what completes an exam.
+  if (e.status === "completed") {
     return attempted ? "Result ready" : "Closed";
   }
-  // under_evaluation
+  // under_evaluation | ready_to_publish — graded or not, the student sees the
+  // same thing until the teacher publishes. "Ready to publish" is internal.
   return attempted ? "Submitted" : "Closed";
 }
 
@@ -91,15 +93,20 @@ function windowText(e: ApiExam, state: StudentExamState): string {
   }
 }
 
-const TABS = ["To do", "In progress", "Completed", "Upcoming"] as const;
-type Tab = (typeof TABS)[number];
+// Tabs are addressable as `?tab=<key>`: the key is the URL-safe slug, the label
+// is what the strip renders. Keeping them separate keeps `?tab=in-progress` in
+// the address bar instead of `?tab=In%20progress`, and lets the visible label
+// carry a count without the URL changing every time the counts do.
+type Tab = "todo" | "in-progress" | "completed" | "upcoming";
 
-const TAB_STATES: Record<Tab, StudentExamState[]> = {
-  "To do": ["Not started"],
-  "In progress": ["In progress"],
-  Completed: ["Submitted", "Result ready", "Closed"],
-  Upcoming: ["Upcoming"],
-};
+const TABS: readonly { key: Tab; label: string; states: readonly StudentExamState[] }[] = [
+  { key: "todo", label: "To do", states: ["Not started"] },
+  { key: "in-progress", label: "In progress", states: ["In progress"] },
+  { key: "completed", label: "Completed", states: ["Submitted", "Result ready", "Closed"] },
+  { key: "upcoming", label: "Upcoming", states: ["Upcoming"] },
+];
+
+const TAB_KEYS: readonly Tab[] = TABS.map((t) => t.key);
 
 function ExamRow({
   e, state, subjectName, onOpen,
@@ -168,7 +175,9 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
   // fetch, so the screen goes straight to its "join a coaching" state.
   const [loading, setLoading] = useState(Boolean(tenant));
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("To do");
+  // In the URL, so a refresh or a shared link lands on the tab the student was
+  // actually looking at rather than dropping them back on "To do".
+  const [tab, setTab] = useUrlState("tab", TAB_KEYS, "todo");
 
   useEffect(() => {
     let cancelled = false;
@@ -193,24 +202,25 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
   const withState = useMemo(() => exams.map((e) => ({ e, state: deriveState(e) })), [exams]);
   const counts = useMemo(() => {
     const c = {} as Record<Tab, number>;
-    for (const t of TABS) c[t] = withState.filter(({ state }) => TAB_STATES[t].includes(state)).length;
+    for (const t of TABS) c[t.key] = withState.filter(({ state }) => t.states.includes(state)).length;
     return c;
   }, [withState]);
-  const visible = withState.filter(({ state }) => TAB_STATES[tab].includes(state));
+  const activeTab = TABS.find((t) => t.key === tab) ?? TABS[0];
+  const visible = withState.filter(({ state }) => activeTab.states.includes(state));
 
   function openExam(e: ApiExam, state: StudentExamState) {
-    if (state === "In progress") router.push(`/exams/${e.id}/attempt`);
+    if (state === "In progress") router.push(`/student/exams/${e.id}/attempt`);
     else if (state === "Result ready") {
       const latest = (e.mySessions ?? []).find((s) => s.status !== "in_progress");
-      router.push(latest ? `/exams/${e.id}/result?session=${latest.id}` : `/exams/${e.id}/intro`);
-    } else if (state === "Not started") router.push(`/exams/${e.id}/intro`);
+      router.push(latest ? `/student/exams/${e.id}/result?session=${latest.id}` : `/student/exams/${e.id}/intro`);
+    } else if (state === "Not started") router.push(`/student/exams/${e.id}/intro`);
   }
 
-  const tabLabels = TABS.map((t) => (counts[t] ? `${t} (${counts[t]})` : t));
-  const labelToTab = (label: string): Tab => TABS[tabLabels.indexOf(label)] ?? "To do";
+  const tabLabels = TABS.map((t) => (counts[t.key] ? `${t.label} (${counts[t.key]})` : t.label));
+  const labelToTab = (label: string): Tab => TABS[tabLabels.indexOf(label)]?.key ?? "todo";
 
   return (
-    <TeacherShell tenant={tenant} user={user} active="exams" noCoaching={!tenant}>
+    <TeacherShell tenant={tenant} user={user} role="student" active="exams" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>
@@ -226,7 +236,7 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
         {tenant && <>
         <Tabs
           tabs={tabLabels}
-          value={tabLabels[TABS.indexOf(tab)]}
+          value={tabLabels[TABS.indexOf(activeTab)]}
           onChange={(label) => setTab(labelToTab(label))}
           style={{ marginBottom: 20 }}
         />
@@ -246,9 +256,9 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
             </div>
             <h3 style={{ margin: 0, fontSize: 18 }}>Nothing here yet</h3>
             <p style={{ margin: 0, fontSize: 14, color: "var(--text-body)", maxWidth: 380 }}>
-              {tab === "Upcoming"
+              {tab === "upcoming"
                 ? "No scheduled exams right now — new tests appear here once your teacher schedules them."
-                : tab === "To do"
+                : tab === "todo"
                   ? "You're all caught up. Exams assigned to your classes will show up here when they open."
                   : "No exams in this bucket yet."}
             </p>

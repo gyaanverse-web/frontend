@@ -1,8 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import type { CSSProperties } from "react";
 import { api } from "@/lib/api";
+import { Button } from "@/components/ui";
 
 type UploadSignature = {
   uploadUrl: string;
@@ -38,16 +38,6 @@ type Props = {
   label?: string;
   /** Optional: disable while a parent flow is in flight. */
   disabled?: boolean;
-};
-
-const btn: CSSProperties = {
-  background: "#1a4db8", color: "#fff", border: "1px solid #1a4db8",
-  padding: "4px 12px", fontWeight: "bold", cursor: "pointer", fontSize: "12px",
-};
-
-const btnGhost: CSSProperties = {
-  background: "#fff", color: "#444", border: "1px solid #aaa",
-  padding: "4px 12px", cursor: "pointer", fontSize: "12px",
 };
 
 function formatBytes(n: number): string {
@@ -128,15 +118,22 @@ export function ImageUpload({ getSignature, value, onChange, label, disabled }: 
 
   return (
     <div>
-      {label && <div style={{ fontSize: "12px", color: "#555", marginBottom: "6px" }}>{label}</div>}
+      {label && <span className="gv-label">{label}</span>}
 
-      <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
         {value && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={value}
             alt="Uploaded answer"
-            style={{ maxWidth: "180px", maxHeight: "180px", border: "1px solid #ddd", objectFit: "contain", background: "#fafafa" }}
+            style={{
+              maxWidth: 180,
+              maxHeight: 180,
+              border: "1px solid var(--border-default)",
+              borderRadius: "var(--radius-md)",
+              objectFit: "contain",
+              background: "var(--surface-inset)",
+            }}
           />
         )}
 
@@ -151,40 +148,63 @@ export function ImageUpload({ getSignature, value, onChange, label, disabled }: 
           />
 
           {!uploading && (
-            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-              <button
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Button
                 type="button"
+                variant="app"
+                size="sm"
                 onClick={() => fileRef.current?.click()}
                 disabled={disabled}
-                style={{ ...btn, opacity: disabled ? 0.5 : 1 }}
               >
                 {value ? "Replace image" : "Upload image"}
-              </button>
+              </Button>
               {value && (
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="sm"
                   onClick={() => onChange("", "")}
                   disabled={disabled}
-                  style={{ ...btnGhost, opacity: disabled ? 0.5 : 1 }}
                 >
                   Remove
-                </button>
+                </Button>
               )}
             </div>
           )}
 
           {uploading && (
-            <div style={{ marginTop: "4px" }}>
-              <div style={{ fontSize: "12px", color: "#555", marginBottom: "4px" }}>Uploading… {progress}%</div>
-              <div style={{ width: "100%", maxWidth: "240px", height: "6px", background: "#eee", border: "1px solid #ddd" }}>
-                <div style={{ width: `${progress}%`, height: "100%", background: "#1a4db8", transition: "width 100ms linear" }} />
+            <div style={{ marginTop: 4 }}>
+              <div style={{ fontSize: 12, color: "var(--text-muted)", marginBottom: 6 }}>
+                Uploading… {progress}%
+              </div>
+              <div
+                style={{
+                  width: "100%",
+                  maxWidth: 240,
+                  height: 6,
+                  background: "var(--surface-inset)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: "var(--radius-pill)",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${progress}%`,
+                    height: "100%",
+                    background: "var(--accent)",
+                    transition: "width 100ms linear",
+                  }}
+                />
               </div>
             </div>
           )}
 
-          {error && <p style={{ margin: "6px 0 0", color: "#c00", fontSize: "12px" }}>{error}</p>}
+          {error && (
+            <p style={{ margin: "8px 0 0", color: "var(--danger)", fontSize: 12 }}>{error}</p>
+          )}
 
-          <p style={{ margin: "6px 0 0", fontSize: "11px", color: "#888" }}>
+          <p style={{ margin: "8px 0 0", fontSize: 11, color: "var(--text-muted)" }}>
             JPG, PNG, WebP, or HEIC. Up to 10 MB. Clear photo of your handwritten answer works best.
           </p>
         </div>

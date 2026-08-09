@@ -28,7 +28,7 @@ export function NoCoachingPanel({
           <Link href="/join" className="gv-btn gv-btn--app gv-btn--md">
             <span>Enter a join code</span>
           </Link>
-          <Link href="/dashboard?screen=Marketplace" className="gv-btn gv-btn--secondary gv-btn--md">
+          <Link href="/student/marketplace" className="gv-btn gv-btn--secondary gv-btn--md">
             <span>Browse public mocks</span>
           </Link>
         </div>

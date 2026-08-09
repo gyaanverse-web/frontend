@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { getSession } from "@/lib/sessionStore";
 import { Logo } from "@/components/ui";
 import styles from "@/app/page.module.css";
 
@@ -31,8 +31,7 @@ export function HomeNav() {
   useEffect(() => {
     // Better Auth returns 200 { user: null } when unauthenticated, so a resolved
     // promise doesn't mean signed in — check the body.
-    api
-      .get<{ user: unknown }>("/api/auth/get-session")
+    getSession()
       .then((res) => setLoggedIn(Boolean(res?.user)))
       .catch(() => setLoggedIn(false));
   }, []);
@@ -68,7 +67,7 @@ export function HomeNav() {
 
       <div style={{ display: "flex", gap: 14, alignItems: "center", marginLeft: 12 }}>
         {loggedIn ? (
-          <Link href="/dashboard" className="gv-btn gv-btn--primary gv-btn--md">
+          <Link href="/coaching/dashboard" className="gv-btn gv-btn--primary gv-btn--md">
             <span>Dashboard</span>
           </Link>
         ) : (

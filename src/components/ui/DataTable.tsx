@@ -52,6 +52,20 @@ export function DataTable<Row extends { id?: string | number }>({
             <tr
               key={row.id ?? i}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
+              // A clickable row is the only way into the record, so it has to be
+              // reachable without a mouse — otherwise dropping per-row action
+              // buttons strands keyboard users.
+              tabIndex={onRowClick ? 0 : undefined}
+              role={onRowClick ? "button" : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (ev) => {
+                      if (ev.key !== "Enter" && ev.key !== " ") return;
+                      ev.preventDefault();
+                      onRowClick(row);
+                    }
+                  : undefined
+              }
               style={onRowClick ? { cursor: "pointer" } : undefined}
             >
               {columns.map((c) => (

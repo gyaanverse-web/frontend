@@ -113,7 +113,7 @@ export function StudentReportsHistory({ user, tenant }: { user: ShellUser; tenan
   );
 
   function viewReport(r: ReportSummary) {
-    router.push(`/exams/${r.examId}/result?session=${r.sessionId}`);
+    router.push(`/student/exams/${r.examId}/result?session=${r.sessionId}`);
   }
 
   if (!loading && !error && reports.length === 0) {
@@ -121,7 +121,7 @@ export function StudentReportsHistory({ user, tenant }: { user: ShellUser; tenan
   }
 
   return (
-    <TeacherShell tenant={tenant} user={user} active="results" noCoaching={!tenant}>
+    <TeacherShell tenant={tenant} user={user} role="student" active="results" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>
@@ -168,7 +168,7 @@ export function StudentReportsHistory({ user, tenant }: { user: ShellUser; tenan
 export function StudentReportsEmpty({ user, tenant }: { user: ShellUser; tenant: ShellTenant }) {
   const router = useRouter();
   return (
-    <TeacherShell tenant={tenant} user={user} active="results" noCoaching={!tenant}>
+    <TeacherShell tenant={tenant} user={user} role="student" active="results" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>
@@ -184,7 +184,7 @@ export function StudentReportsEmpty({ user, tenant }: { user: ShellUser; tenant:
           <p style={{ margin: 0, fontSize: 14.5, color: "var(--text-body)" }}>
             Results appear here after you take an exam and your teacher publishes them.
           </p>
-          <Button variant="app" arrow onClick={() => router.push("/dashboard?screen=Exams")}>Go to my exams</Button>
+          <Button variant="app" arrow onClick={() => router.push("/student/exams")}>Go to my exams</Button>
         </div>
       </div>
     </TeacherShell>

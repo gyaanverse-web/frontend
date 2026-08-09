@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { getSession, invalidateSession } from "@/lib/sessionStore";
 import { postAuthRedirect } from "@/lib/tenantUrl";
 import { Logo, Button } from "@/components/ui";
 
@@ -40,8 +41,7 @@ function LoginContent() {
   useEffect(() => {
     // Better Auth returns 200 { user: null } when unauthenticated rather than
     // rejecting, so we have to check the body — not just whether it resolved.
-    api
-      .get<{ user: { id: string } | null }>("/api/auth/get-session")
+    getSession()
       .then((res) => {
         if (!res?.user) {
           setAuthChecking(false);
@@ -65,6 +65,11 @@ function LoginContent() {
   }, [params]);
 
   function redirect() {
+    // Mandatory before the redirect, not merely tidy: the effect above cached
+    // `{ user: null }` when this page loaded signed-out. postAuthRedirect reads
+    // the session and the coaching to decide where to send us, and against that
+    // stale copy it would route a freshly signed-in user as an anonymous one.
+    invalidateSession();
     void postAuthRedirect(router, { nextParam: params.get("next") });
   }
 

@@ -111,7 +111,7 @@ function CreateCoachingContent() {
           )}
 
           <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-            <Button type="button" variant="secondary" size="lg" onClick={() => router.push("/dashboard")}>
+            <Button type="button" variant="secondary" size="lg" onClick={() => router.push("/coaching/dashboard")}>
               Cancel
             </Button>
             <Button type="submit" size="lg" arrow disabled={loading} style={{ flex: 1 }}>

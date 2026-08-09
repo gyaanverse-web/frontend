@@ -169,7 +169,7 @@ export default function JoinCoachingPage() {
         <p style={{ textAlign: "center", fontSize: 13.5, color: "var(--text-body)", margin: 0, lineHeight: 1.6 }}>
           Got a full invite link instead? Just open it — it does this for you.
           <br />
-          <Link href="/dashboard" style={{ color: "var(--accent)", fontWeight: 600 }}>
+          <Link href="/coaching/dashboard" style={{ color: "var(--accent)", fontWeight: 600 }}>
             Back to dashboard
           </Link>
         </p>

@@ -1,15 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import {
-  topBar as hdr,
-  topBarDivider as aSep,
-  topBarGhostAction as btnSignOut,
-  topBarLink as aBack,
-  topBarLink as aNav,
-  topBarLogo as aLogo,
-  topBarPrimaryAction as btnSignIn,
-} from "@/lib/uiStyles";
+import Link from "next/link";
+import { Logo, Button } from "@/components/ui";
 
 export interface NavBarProps {
   /** ← back link shown before the logo */
@@ -24,31 +17,44 @@ export interface NavBarProps {
   right?: ReactNode;
 }
 
+/** Public-facing top bar for the marketplace + exam preview. Unlike PageShell this
+ *  renders for signed-out visitors too, so it takes auth state as a prop instead
+ *  of fetching a session. */
 export function NavBar({ back, user, onSignOut, activePage, right }: NavBarProps) {
   return (
-    <header style={hdr}>
+    <header className="gv-topbar" style={{ position: "sticky", top: 0, zIndex: 5 }}>
       {back && (
-        <>
-          <a href={back.href} style={aBack}>← {back.label ?? "Back"}</a>
-          <span style={aSep}>|</span>
-        </>
+        <Link href={back.href} className="gv-btn gv-btn--ghost gv-btn--sm" style={{ gap: 6 }}>
+          <span aria-hidden="true">←</span>
+          <span>{back.label ?? "Back"}</span>
+        </Link>
       )}
 
-      <a href="/" style={aLogo}>GYANVERSE</a>
+      <Link href="/" aria-label="Gyanverse home" style={{ display: "inline-flex" }}>
+        <Logo size={18} />
+      </Link>
 
       <div style={{ flex: 1 }} />
 
       {activePage !== "exams" && (
-        <a href="/exams/public" style={aNav}>Exams</a>
+        <Link href="/mocks" className="gv-btn gv-btn--ghost gv-btn--sm">
+          Exams
+        </Link>
       )}
       {user && activePage !== "dashboard" && (
-        <a href="/dashboard" style={aNav}>Dashboard</a>
+        <Link href="/coaching/dashboard" className="gv-btn gv-btn--ghost gv-btn--sm">
+          Dashboard
+        </Link>
       )}
       {user === null && activePage !== "login" && activePage !== "signup" && (
-        <a href="/login" style={btnSignIn}>Sign In</a>
+        <Link href="/login" className="gv-btn gv-btn--app gv-btn--sm">
+          Sign In
+        </Link>
       )}
       {user && onSignOut && (
-        <button onClick={onSignOut} style={btnSignOut}>Sign Out</button>
+        <Button variant="ghost" size="sm" onClick={onSignOut}>
+          Sign Out
+        </Button>
       )}
 
       {right}

@@ -28,7 +28,13 @@ function RegisterContent() {
     setError("");
     setLoading(true);
     try {
-      await api.post("/api/auth/sign-up/email", { name: ownerName, email, password });
+      // `signupIntent` is what makes the Student/Coaching Owner toggle above
+      // mean something. Without it this request is byte-identical to /signup's,
+      // the account defaults to a student, and after verifying their email the
+      // owner is filed into /student with no route to /create-coaching.
+      await api.post("/api/auth/sign-up/email", {
+        name: ownerName, email, password, signupIntent: "coaching_owner",
+      });
       setStep(2);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
@@ -37,10 +43,15 @@ function RegisterContent() {
     }
   }
 
-  const STEPS: [string, string] = ["Your account", "Verify email"];
+  // Step 3 happens on /create-coaching after the first sign-in, not on this
+  // page — it is listed anyway because it is part of the same journey, and
+  // hiding it is what made the flow look like it just ended at "verify email".
+  // Labels are terse because three of them plus connectors have to fit the
+  // 480px card on one line.
+  const STEPS: [string, string, string] = ["Account", "Verify email", "Name institute"];
 
   const stepIndicator = (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 24 }}>
+    <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 24 }}>
       {STEPS.map((label, i) => {
         const num = i + 1;
         const done = step > num;

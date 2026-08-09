@@ -1,6 +1,6 @@
 "use client";
 
-import { inputBase as inp, btnSecondary as btnS } from "@/lib/uiStyles";
+import { Button } from "@/components/ui";
 
 // Shared, type-aware editor for a question's payload + answerKey. Used by the
 // question-bank add/edit forms and the test-engine draft add/edit flows.
@@ -189,8 +189,8 @@ export function parseToEditor(
 
 export function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-      <label style={{ fontSize: "11px", color: "#555" }}>{label}</label>
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <span className="gv-label">{label}</span>
       {children}
     </div>
   );
@@ -208,56 +208,63 @@ export function QuestionEditor({
 }) {
   const isMcq = type === "mcq_single" || type === "mcq_multiple";
   return (
-    <div style={{ padding: "10px", background: "#fafafa", border: "1px solid #eee" }}>
+    <div
+      style={{
+        padding: 16,
+        background: "var(--surface-inset)",
+        border: "1px solid var(--border-default)",
+        borderRadius: "var(--radius-md)",
+      }}
+    >
       {isMcq && (
         <>
-          <label style={{ fontSize: "11px", color: "#555", display: "block", marginBottom: "4px" }}>
+          <span className="gv-label">
             Options ({type === "mcq_single" ? "pick one correct" : "tick all correct"})
-          </label>
+          </span>
           {ed.options.map((opt, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               {type === "mcq_single" ? (
-                <input type="radio" name="correct" checked={ed.correctSingle === i} onChange={() => setEd((s) => ({ ...s, correctSingle: i }))} />
+                <input type="radio" name="correct" checked={ed.correctSingle === i} onChange={() => setEd((s) => ({ ...s, correctSingle: i }))} style={{ accentColor: "var(--accent)" }} />
               ) : (
-                <input type="checkbox" checked={ed.correctMulti.includes(i)} onChange={(e) => setEd((s) => ({ ...s, correctMulti: e.target.checked ? [...s.correctMulti, i] : s.correctMulti.filter((x) => x !== i) }))} />
+                <input type="checkbox" checked={ed.correctMulti.includes(i)} onChange={(e) => setEd((s) => ({ ...s, correctMulti: e.target.checked ? [...s.correctMulti, i] : s.correctMulti.filter((x) => x !== i) }))} style={{ accentColor: "var(--accent)" }} />
               )}
-              <span style={{ fontSize: "12px", color: "#888", width: "14px" }}>{letter(i)}.</span>
-              <input value={opt} onChange={(e) => setEd((s) => ({ ...s, options: s.options.map((o, j) => (j === i ? e.target.value : o)) }))} placeholder={`Option ${letter(i)}`} style={{ ...inp, flex: 1 }} />
+              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-muted)", width: 16 }}>{letter(i)}.</span>
+              <input className="gv-input" value={opt} onChange={(e) => setEd((s) => ({ ...s, options: s.options.map((o, j) => (j === i ? e.target.value : o)) }))} placeholder={`Option ${letter(i)}`} style={{ flex: 1 }} />
               {ed.options.length > 2 && (
-                <button type="button" onClick={() => setEd((s) => ({ ...s, options: s.options.filter((_, j) => j !== i) }))} style={{ ...btnS, padding: "1px 7px", fontSize: "11px" }}>✕</button>
+                <Button type="button" variant="ghost" size="sm" aria-label={`Remove option ${letter(i)}`} onClick={() => setEd((s) => ({ ...s, options: s.options.filter((_, j) => j !== i) }))}>✕</Button>
               )}
             </div>
           ))}
-          <button type="button" onClick={() => setEd((s) => ({ ...s, options: [...s.options, ""] }))} style={{ ...btnS, fontSize: "11px", padding: "2px 8px", marginTop: "2px" }}>+ Option</button>
+          <Button type="button" variant="secondary" size="sm" style={{ marginTop: 4 }} onClick={() => setEd((s) => ({ ...s, options: [...s.options, ""] }))}>+ Option</Button>
         </>
       )}
 
       {type === "integer" && (
         <Field label="Correct integer">
-          <input type="number" value={ed.intValue} onChange={(e) => setEd((s) => ({ ...s, intValue: e.target.value }))} style={{ ...inp, width: "120px" }} />
+          <input className="gv-input" type="number" value={ed.intValue} onChange={(e) => setEd((s) => ({ ...s, intValue: e.target.value }))} style={{ width: 140 }} />
         </Field>
       )}
 
       {type === "numerical" && (
-        <div style={{ display: "flex", gap: "12px" }}>
-          <Field label="Correct value"><input type="number" value={ed.numValue} onChange={(e) => setEd((s) => ({ ...s, numValue: e.target.value }))} style={{ ...inp, width: "120px" }} /></Field>
-          <Field label="Tolerance (±)"><input type="number" value={ed.numTolerance} onChange={(e) => setEd((s) => ({ ...s, numTolerance: e.target.value }))} placeholder="optional" style={{ ...inp, width: "120px" }} /></Field>
+        <div style={{ display: "flex", gap: 16 }}>
+          <Field label="Correct value"><input className="gv-input" type="number" value={ed.numValue} onChange={(e) => setEd((s) => ({ ...s, numValue: e.target.value }))} style={{ width: 140 }} /></Field>
+          <Field label="Tolerance (±)"><input className="gv-input" type="number" value={ed.numTolerance} onChange={(e) => setEd((s) => ({ ...s, numTolerance: e.target.value }))} placeholder="optional" style={{ width: 140 }} /></Field>
         </div>
       )}
 
       {type === "subjective" && (
-        <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-          <Field label="Sample answer (optional)"><textarea value={ed.subjSample} onChange={(e) => setEd((s) => ({ ...s, subjSample: e.target.value }))} rows={2} style={{ ...inp, width: "260px", resize: "vertical" }} /></Field>
-          <Field label="Rubric (optional)"><textarea value={ed.subjRubric} onChange={(e) => setEd((s) => ({ ...s, subjRubric: e.target.value }))} rows={2} style={{ ...inp, width: "260px", resize: "vertical" }} /></Field>
+        <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+          <Field label="Sample answer (optional)"><textarea className="gv-textarea" value={ed.subjSample} onChange={(e) => setEd((s) => ({ ...s, subjSample: e.target.value }))} rows={3} style={{ width: 280 }} /></Field>
+          <Field label="Rubric (optional)"><textarea className="gv-textarea" value={ed.subjRubric} onChange={(e) => setEd((s) => ({ ...s, subjRubric: e.target.value }))} rows={3} style={{ width: 280 }} /></Field>
         </div>
       )}
 
       {type === "assertion_reason" && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          <Field label="Assertion"><input value={ed.arAssertion} onChange={(e) => setEd((s) => ({ ...s, arAssertion: e.target.value }))} style={{ ...inp, width: "100%" }} /></Field>
-          <Field label="Reason"><input value={ed.arReason} onChange={(e) => setEd((s) => ({ ...s, arReason: e.target.value }))} style={{ ...inp, width: "100%" }} /></Field>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Field label="Assertion"><input className="gv-input" value={ed.arAssertion} onChange={(e) => setEd((s) => ({ ...s, arAssertion: e.target.value }))} /></Field>
+          <Field label="Reason"><input className="gv-input" value={ed.arReason} onChange={(e) => setEd((s) => ({ ...s, arReason: e.target.value }))} /></Field>
           <Field label="Correct option">
-            <select value={ed.arOption} onChange={(e) => setEd((s) => ({ ...s, arOption: e.target.value }))} style={inp}>
+            <select className="gv-select" value={ed.arOption} onChange={(e) => setEd((s) => ({ ...s, arOption: e.target.value }))} style={{ width: 140 }}>
               {["A", "B", "C", "D", "E"].map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </Field>
@@ -266,7 +273,7 @@ export function QuestionEditor({
 
       {type === "fill_blanks" && (
         <Field label="Answers (one per line — blanks count is inferred)">
-          <textarea value={ed.fbAnswers} onChange={(e) => setEd((s) => ({ ...s, fbAnswers: e.target.value }))} rows={3} style={{ ...inp, width: "260px", resize: "vertical" }} />
+          <textarea className="gv-textarea" value={ed.fbAnswers} onChange={(e) => setEd((s) => ({ ...s, fbAnswers: e.target.value }))} rows={3} style={{ width: 280 }} />
         </Field>
       )}
 
@@ -280,18 +287,18 @@ function MatchEditor({ ed, setEd }: { ed: EditorState; setEd: React.Dispatch<Rea
   const right = ed.matchRight.split("\n").map((t) => t.trim()).filter(Boolean);
   return (
     <div>
-      <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", marginBottom: "8px" }}>
-        <Field label="Left items (one per line)"><textarea value={ed.matchLeft} onChange={(e) => setEd((s) => ({ ...s, matchLeft: e.target.value }))} rows={3} style={{ ...inp, width: "220px", resize: "vertical" }} /></Field>
-        <Field label="Right items (one per line)"><textarea value={ed.matchRight} onChange={(e) => setEd((s) => ({ ...s, matchRight: e.target.value }))} rows={3} style={{ ...inp, width: "220px", resize: "vertical" }} /></Field>
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 12 }}>
+        <Field label="Left items (one per line)"><textarea className="gv-textarea" value={ed.matchLeft} onChange={(e) => setEd((s) => ({ ...s, matchLeft: e.target.value }))} rows={3} style={{ width: 240 }} /></Field>
+        <Field label="Right items (one per line)"><textarea className="gv-textarea" value={ed.matchRight} onChange={(e) => setEd((s) => ({ ...s, matchRight: e.target.value }))} rows={3} style={{ width: 240 }} /></Field>
       </div>
       {left.length > 0 && right.length > 0 && (
         <div>
-          <label style={{ fontSize: "11px", color: "#555", display: "block", marginBottom: "4px" }}>Map each left → right</label>
+          <span className="gv-label">Map each left → right</span>
           {left.map((l, li) => (
-            <div key={li} style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "3px" }}>
-              <span style={{ fontSize: "12px", width: "140px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l}</span>
-              <span style={{ fontSize: "12px", color: "#888" }}>→</span>
-              <select value={ed.matchPairs[li] ?? ""} onChange={(e) => setEd((s) => ({ ...s, matchPairs: { ...s.matchPairs, [li]: parseInt(e.target.value, 10) } }))} style={inp}>
+            <div key={li} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 13, color: "var(--text-body)", width: 150, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l}</span>
+              <span aria-hidden="true" style={{ fontSize: 13, color: "var(--text-muted)" }}>→</span>
+              <select className="gv-select" aria-label={`Match for ${l}`} value={ed.matchPairs[li] ?? ""} onChange={(e) => setEd((s) => ({ ...s, matchPairs: { ...s.matchPairs, [li]: parseInt(e.target.value, 10) } }))} style={{ flex: 1, maxWidth: 240 }}>
                 <option value="">—</option>
                 {right.map((r, ri) => <option key={ri} value={ri}>{r}</option>)}
               </select>

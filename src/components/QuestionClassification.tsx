@@ -1,6 +1,5 @@
 "use client";
 
-import { inputBase as inp } from "@/lib/uiStyles";
 import { Field } from "@/components/QuestionEditor";
 
 // Optional classification for a bank question: where it came from (source) and
@@ -63,9 +62,9 @@ export function QuestionClassification({
 }) {
   const set = (patch: Partial<Classification>) => onChange({ ...value, ...patch });
   return (
-    <div style={{ display: "flex", gap: "12px", flexWrap: "wrap", alignItems: "flex-end" }}>
+    <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
       <Field label="Source">
-        <select value={value.sourceType} onChange={(e) => set({ sourceType: e.target.value as Classification["sourceType"] })} style={inp}>
+        <select className="gv-select" value={value.sourceType} onChange={(e) => set({ sourceType: e.target.value as Classification["sourceType"] })} style={{ width: 180 }}>
           <option value="">— none —</option>
           <option value="original">Original</option>
           <option value="textbook">Textbook</option>
@@ -75,19 +74,19 @@ export function QuestionClassification({
 
       {value.sourceType === "textbook" && (
         <>
-          <Field label="Book"><input value={value.book} onChange={(e) => set({ book: e.target.value })} style={{ ...inp, width: "180px" }} /></Field>
-          <Field label="Page"><input type="number" value={value.page} onChange={(e) => set({ page: e.target.value })} style={{ ...inp, width: "70px" }} /></Field>
+          <Field label="Book"><input className="gv-input" value={value.book} onChange={(e) => set({ book: e.target.value })} style={{ width: 200 }} /></Field>
+          <Field label="Page"><input className="gv-input" type="number" value={value.page} onChange={(e) => set({ page: e.target.value })} style={{ width: 90 }} /></Field>
         </>
       )}
       {value.sourceType === "pyq" && (
         <>
-          <Field label="Exam"><input value={value.examName} onChange={(e) => set({ examName: e.target.value })} placeholder="JEE_MAINS" style={{ ...inp, width: "140px" }} /></Field>
-          <Field label="Year"><input type="number" value={value.examYear} onChange={(e) => set({ examYear: e.target.value })} style={{ ...inp, width: "80px" }} /></Field>
+          <Field label="Exam"><input className="gv-input" value={value.examName} onChange={(e) => set({ examName: e.target.value })} placeholder="JEE_MAINS" style={{ width: 160 }} /></Field>
+          <Field label="Year"><input className="gv-input" type="number" value={value.examYear} onChange={(e) => set({ examYear: e.target.value })} style={{ width: 100 }} /></Field>
         </>
       )}
 
       <Field label="Cognitive level">
-        <select value={value.cognitiveLevel} onChange={(e) => set({ cognitiveLevel: e.target.value })} style={inp}>
+        <select className="gv-select" value={value.cognitiveLevel} onChange={(e) => set({ cognitiveLevel: e.target.value })} style={{ width: 180 }}>
           <option value="">— none —</option>
           {COGNITIVE_LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
         </select>

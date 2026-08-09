@@ -26,14 +26,24 @@ const ROLE_TO_BADGE: Record<string, BadgeRole> = {
 };
 
 export interface AppSidebarProps {
-  /** Global role: coaching_owner | teacher | student | super_admin. */
-  role: string;
+  /**
+   * The role whose navigation to render — `displayRole` from `useTenantSession`.
+   *
+   * `null` means "not resolved yet" and renders a skeleton. There is deliberately
+   * NO default: a shell that guessed a role here would render another role's menu
+   * — which is exactly how every student ended up looking at the teacher sidebar.
+   */
+  role: string | null;
   /** Which nav item is highlighted. */
   activeKey: AppNavKey;
   onLogout: () => void;
 }
 
 export function AppSidebar({ role, activeKey, onLogout }: AppSidebarProps) {
+  // Until the role resolves we cannot know which menu is correct, so show none.
+  // Guessing costs a visible flash of items the user may not be allowed to open.
+  if (role === null) return <AppSidebarSkeleton />;
+
   const nav = buildAppNav(role);
   const badgeRole = ROLE_TO_BADGE[role] ?? "student";
 
@@ -63,6 +73,30 @@ export function AppSidebar({ role, activeKey, onLogout }: AppSidebarProps) {
         <Icon name="log-out" size={17} />
         Log out
       </button>
+    </nav>
+  );
+}
+
+/** Sidebar chrome with the item list withheld, for the moment before the role is known. */
+function AppSidebarSkeleton() {
+  return (
+    <nav className="gv-sidebar" style={{ position: "sticky", top: 0, height: "100vh", flexShrink: 0 }} aria-busy="true">
+      <div style={{ padding: "8px 12px 14px" }}>
+        <Link href="/"><Logo size={18} /></Link>
+      </div>
+      {Array.from({ length: 6 }, (_, i) => (
+        <div
+          key={i}
+          aria-hidden="true"
+          style={{
+            height: 15,
+            margin: "9px 14px",
+            borderRadius: 4,
+            background: "var(--border-light)",
+            opacity: 0.7 - i * 0.08,
+          }}
+        />
+      ))}
     </nav>
   );
 }

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { getSession, invalidateSession } from "@/lib/sessionStore";
 import { postAuthRedirect } from "@/lib/tenantUrl";
 import { Logo, Button, Badge } from "@/components/ui";
 
@@ -142,9 +143,8 @@ export default function JoinByCodePage() {
           ok: false as const,
           message: e instanceof Error ? e.message : "This code is invalid or has expired.",
         })),
-      api
-        .get<{ user: SessionUser | null }>("/api/auth/get-session")
-        .then((r) => r?.user ?? null)
+      getSession()
+        .then((r) => (r?.user as SessionUser | null) ?? null)
         .catch(() => null),
     ])
       .then(([p, sessionUser]) => {
@@ -160,6 +160,11 @@ export default function JoinByCodePage() {
     setJoining(true);
     try {
       await api.post(`/join/${code}`, {});
+      // They now belong to a coaching. postAuthRedirect below reads `/tenants/me`
+      // to pick a destination, and the cached answer from this page's load is the
+      // 404 that says they belong to none — which would send them to the
+      // "create or join a coaching" screen they just came from.
+      invalidateSession();
       setJoined(true);
       setTimeout(() => void postAuthRedirect(router), 1800);
     } catch (err) {
@@ -319,7 +324,7 @@ export default function JoinByCodePage() {
           </Button>
 
           <p style={{ textAlign: "center", fontSize: 13, color: "var(--text-muted)", margin: "16px 0 0" }}>
-            <Link href="/dashboard" style={{ color: "var(--text-muted)" }}>
+            <Link href="/coaching/dashboard" style={{ color: "var(--text-muted)" }}>
               Not now
             </Link>
           </p>

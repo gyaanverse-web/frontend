@@ -1,7 +1,11 @@
 // Single source of truth for the 11-status exam lifecycle (PRD v1).
 // Mirrors the backend union in `exam.types.ts` — keep the two in sync.
 //   draft → under_review → changes_requested → rejected → approved → scheduled →
-//   live → under_evaluation → results_published → completed → archived
+//   live → under_evaluation → ready_to_publish → completed → archived
+//
+// `completed` is the publish event: the teacher's click both reveals results to
+// students and ends the lifecycle. There is no separate "results published"
+// state — it and `completed` always meant the same moment.
 import type { BadgeTone } from "@/components/ui";
 
 export type ExamStatus =
@@ -13,13 +17,13 @@ export type ExamStatus =
   | "scheduled"
   | "live"
   | "under_evaluation"
-  | "results_published"
+  | "ready_to_publish"
   | "completed"
   | "archived";
 
 export const EXAM_STATUSES: readonly ExamStatus[] = [
   "draft", "under_review", "changes_requested", "rejected", "approved",
-  "scheduled", "live", "under_evaluation", "results_published", "completed",
+  "scheduled", "live", "under_evaluation", "ready_to_publish", "completed",
   "archived",
 ] as const;
 
@@ -41,8 +45,8 @@ export const EXAM_STATUS_META: Record<ExamStatus, ExamStatusMeta> = {
   scheduled:         { label: "Scheduled",         tone: "accent",  hint: "Scheduled to go live at the set time." },
   live:              { label: "Live",              tone: "success", hint: "In progress — students can attempt now." },
   under_evaluation:  { label: "Under Evaluation",  tone: "warning", hint: "Window closed — sessions being evaluated." },
-  results_published: { label: "Results Published", tone: "success", hint: "Scores & reports are visible to students." },
-  completed:         { label: "Completed",         tone: "neutral", hint: "Lifecycle finished." },
+  ready_to_publish:  { label: "Ready to Publish",  tone: "accent",  hint: "All sessions evaluated — review the reports, then publish." },
+  completed:         { label: "Completed",         tone: "success", hint: "Results published — students can see their scores & reports." },
   archived:          { label: "Archived",          tone: "neutral", hint: "Retired from active lists." },
 };
 
@@ -68,14 +72,67 @@ export function canSubmitForReview(status: ExamStatus): boolean {
   return status === "draft" || status === "changes_requested";
 }
 
-/** A teacher publishes results only from under_evaluation. */
+/**
+ * Publishing is only offered once every session has been evaluated — that is
+ * what `ready_to_publish` means. While the exam is still `under_evaluation` the
+ * numbers are incomplete, so there is deliberately nothing to click: the teacher
+ * reviews finished reports first, then publishes.
+ */
 export function canPublishResults(status: ExamStatus): boolean {
-  return status === "under_evaluation";
+  return status === "ready_to_publish";
+}
+
+/**
+ * Normally the authoring teacher publishes. The owner is allowed as a
+ * break-glass so an absent teacher cannot strand marks that are already
+ * computed — the backend records who actually did it either way.
+ */
+export function canPublishResultsAsOwner(status: ExamStatus): boolean {
+  return status === "ready_to_publish";
+}
+
+/**
+ * Owner-only. Approving is a verdict on the paper and does NOT set a date —
+ * scheduling is a separate decision made whenever a slot is free. So an
+ * `approved` exam can be scheduled, and a `scheduled` one can still have its
+ * window moved right up until it goes live.
+ */
+export function canSchedule(status: ExamStatus): boolean {
+  return status === "approved" || status === "scheduled";
+}
+
+/**
+ * Whether student reports can exist for this exam yet.
+ *
+ * Reports are written per session as each paper finishes evaluation, so they
+ * start appearing during `under_evaluation` — the teacher does not have to wait
+ * for the whole cohort before reviewing the ones that are done. Before the exam
+ * has run there is nothing to show at all.
+ */
+export function hasReports(status: ExamStatus): boolean {
+  return status === "under_evaluation" || status === "ready_to_publish"
+    || status === "completed" || status === "archived";
+}
+
+/** Owner-only: start a scheduled exam ahead of its start time. */
+export function canGoLiveNow(status: ExamStatus): boolean {
+  return status === "scheduled";
 }
 
 /** Archive is owner-only and only from completed. */
 export function canArchive(status: ExamStatus): boolean {
   return status === "completed";
+}
+
+/**
+ * `rejected` is a terminal verdict — the admin judged the paper unusable, so the
+ * teacher cannot edit it or resubmit it (there is no `rejected → draft`
+ * transition in the backend state machine). Duplicating it into a fresh draft is
+ * the only way forward. Contrast with `changes_requested`, which *is* the
+ * fix-and-resubmit loop.
+ */
+export function isExamRejected(status: ExamStatus): boolean {
+  return status === "rejected";
 }
 
 // ── Dashboard buckets ───────────────────────────────────────────────────────
@@ -88,25 +145,58 @@ export interface StatusBucket {
   statuses: ExamStatus[];
 }
 
-/** Teacher-facing buckets (their own exams across the lifecycle). */
+/**
+ * Teacher-facing buckets (their own exams across the lifecycle). "Drafts" holds
+ * only the states the teacher can actually act on — `rejected` is terminal (see
+ * `isExamRejected`), so it sits with the other closed states instead.
+ */
 export const TEACHER_BUCKETS: readonly StatusBucket[] = [
-  { key: "drafts",     label: "Drafts",      statuses: ["draft", "changes_requested", "rejected"] },
-  { key: "review",     label: "In Review",   statuses: ["under_review"] },
-  { key: "scheduled",  label: "Scheduled",   statuses: ["approved", "scheduled"] },
-  { key: "live",       label: "Live",        statuses: ["live"] },
-  { key: "evaluation", label: "Evaluation",  statuses: ["under_evaluation", "results_published"] },
-  { key: "completed",  label: "Completed",   statuses: ["completed", "archived"] },
+  { key: "drafts",     label: "Drafts",           statuses: ["draft", "changes_requested"] },
+  { key: "review",     label: "In Review",        statuses: ["under_review"] },
+  { key: "scheduled",  label: "Approved",         statuses: ["approved", "scheduled"] },
+  { key: "live",       label: "Live",             statuses: ["live"] },
+  { key: "evaluation", label: "Evaluation",       statuses: ["under_evaluation"] },
+  // The teacher's action queue: these are the exams waiting on them to review
+  // reports and release marks, so it gets its own tab rather than sitting
+  // alongside `under_evaluation`, where there is nothing to do but wait.
+  { key: "publish",    label: "Ready to Publish", statuses: ["ready_to_publish"] },
+  { key: "closed",     label: "Closed",           statuses: ["completed", "archived", "rejected"] },
 ] as const;
 
-/** Admin-facing buckets (approval + run monitoring across the tenant). */
+/**
+ * Admin-facing buckets (approval + run monitoring across the tenant).
+ *
+ * "Approved" and "Scheduled" are deliberately separate tabs: approving a paper
+ * and dating it are two decisions the admin makes at different times, so
+ * `approved` is a real resting state and this tab is the admin's list of papers
+ * that still owe a date. Merging them would hide that work.
+ */
 export const ADMIN_BUCKETS: readonly StatusBucket[] = [
-  { key: "queue",      label: "Approval Queue", statuses: ["under_review"] },
-  { key: "scheduled",  label: "Scheduled",      statuses: ["approved", "scheduled"] },
-  { key: "live",       label: "Live",           statuses: ["live"] },
-  { key: "evaluation", label: "Evaluation",     statuses: ["under_evaluation"] },
-  { key: "published",  label: "Published",      statuses: ["results_published", "completed"] },
-  { key: "changes",    label: "Bounced",        statuses: ["changes_requested", "rejected"] },
+  { key: "queue",      label: "Approval Queue",   statuses: ["under_review"] },
+  { key: "approved",   label: "To Schedule",      statuses: ["approved"] },
+  { key: "scheduled",  label: "Scheduled",        statuses: ["scheduled"] },
+  { key: "live",       label: "Live",             statuses: ["live"] },
+  { key: "evaluation", label: "Evaluation",       statuses: ["under_evaluation"] },
+  // The owner SEES this bucket — it is how they know which teachers still owe a
+  // publish — but the publish button is the teacher's, not theirs (bar the
+  // break-glass in `canPublishResultsAsOwner`).
+  { key: "publish",    label: "Ready to Publish", statuses: ["ready_to_publish"] },
+  { key: "published",  label: "Published",        statuses: ["completed"] },
+  { key: "changes",    label: "Bounced",          statuses: ["changes_requested", "rejected"] },
 ] as const;
+
+/**
+ * The buckets a given tenant role should see on the exams hub.
+ *
+ * These are not two views of the same list — they are two different lists. A
+ * teacher's hub starts at "Drafts" because authoring is their job; the owner's
+ * starts at "Approval Queue" because a paper only becomes their business when
+ * it is submitted. The owner has no Drafts tab at all, and asking the API for
+ * `?status=draft` as an owner returns nothing, so there is nothing to show.
+ */
+export function bucketsForRole(role: string | null): readonly StatusBucket[] {
+  return role === "coaching_owner" ? ADMIN_BUCKETS : TEACHER_BUCKETS;
+}
 
 /** Serialize a bucket's statuses into the `?status=` query param. */
 export function bucketStatusParam(bucket: StatusBucket): string {

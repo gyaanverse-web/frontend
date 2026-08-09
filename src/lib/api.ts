@@ -54,6 +54,18 @@ type RequestOptions = {
 // settles, so the next call after the response always gets a fresh fetch.
 const inflightGets = new Map<string, Promise<unknown>>();
 
+/**
+ * Notified whenever any request comes back 401.
+ *
+ * Registered by lib/sessionStore rather than imported from it: the store fetches
+ * through this module, so importing it back would be a real runtime cycle.
+ */
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(fn: () => void): void {
+  onUnauthorized = fn;
+}
+
 async function execFetch<T>(
   url: URL,
   method: string,
@@ -67,7 +79,11 @@ async function execFetch<T>(
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(data?.message ?? `HTTP ${res.status}`, res.status);
+  if (!res.ok) {
+    // The session is gone server-side; anything cached about it is now wrong.
+    if (res.status === 401) onUnauthorized?.();
+    throw new ApiError(data?.message ?? `HTTP ${res.status}`, res.status);
+  }
   return data as T;
 }
 
@@ -116,4 +132,24 @@ export const api = {
 
   delete: <T>(path: string, opts?: Omit<RequestOptions, "method" | "body">) =>
     request<T>(path, { ...opts, method: "DELETE" }),
+
+  /**
+   * Fire-and-forget PUT that survives the page going away.
+   *
+   * A normal fetch is cancelled when the document unloads, which is exactly when
+   * an autosave matters most — the teacher closing the tab mid-wizard. `keepalive`
+   * asks the browser to finish the request anyway. Returns nothing and never
+   * throws: by the time it fails there is no UI left to tell.
+   */
+  keepalivePut: (path: string, body: unknown, opts?: { tenant?: string }): void => {
+    const url = new URL(path, resolveApiUrl());
+    const slug = opts?.tenant ?? resolveTenantSlug();
+    void fetch(url.toString(), {
+      method: "PUT",
+      credentials: "include",
+      keepalive: true,
+      headers: { "Content-Type": "application/json", ...(slug ? { "X-Tenant-Slug": slug } : {}) },
+      body: JSON.stringify(body),
+    }).catch(() => { /* the page is unloading; nothing to report to */ });
+  },
 };

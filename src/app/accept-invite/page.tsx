@@ -4,6 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import { getSession, invalidateSession } from "@/lib/sessionStore";
 import { postAuthRedirect } from "@/lib/tenantUrl";
 import { Logo, Button, Badge } from "@/components/ui";
 
@@ -258,9 +259,8 @@ function AcceptInviteContent() {
       api
         .get<InvitePreview>(`/invites/${encodeURIComponent(token)}`)
         .catch(() => null),
-      api
-        .get<{ user: SessionUser | null }>("/api/auth/get-session")
-        .then((res) => res?.user ?? null)
+      getSession()
+        .then((res) => (res?.user as SessionUser | null) ?? null)
         .catch(() => null),
     ])
       .then(([inv, sessionUser]) => {
@@ -277,6 +277,9 @@ function AcceptInviteContent() {
     setAccepting(true);
     try {
       await api.post<unknown>("/invites/accept", { token });
+      // The membership this page cached — usually a 404 for "no coaching" — is
+      // now wrong, and postAuthRedirect is about to read it.
+      invalidateSession();
       setDone(true);
       setTimeout(() => void postAuthRedirect(router), 2000);
     } catch (err) {
@@ -292,6 +295,7 @@ function AcceptInviteContent() {
     } catch {
       /* ignore — we only care that the local session is gone */
     }
+    invalidateSession();
     setUser(null);
     setAcceptError("");
   }
@@ -319,6 +323,9 @@ function AcceptInviteContent() {
       // session cookie — so the invite can be accepted in the same submit.
       await api.post<unknown>("/api/auth/phone-number/verify", { phoneNumber: phone, code: otp });
       await api.post<unknown>("/invites/accept", { token });
+      // Both halves of the cache are stale now: a new account signed in, and it
+      // gained a coaching.
+      invalidateSession();
       setDone(true);
       setTimeout(() => void postAuthRedirect(router), 2000);
     } catch (err) {
@@ -478,7 +485,7 @@ function AcceptInviteContent() {
         </Button>
 
         <p style={{ textAlign: "center", fontSize: 13, color: "var(--text-muted)", margin: "16px 0 0" }}>
-          <Link href="/dashboard" style={{ color: "var(--text-muted)" }}>
+          <Link href="/coaching/dashboard" style={{ color: "var(--text-muted)" }}>
             Not now
           </Link>
         </p>

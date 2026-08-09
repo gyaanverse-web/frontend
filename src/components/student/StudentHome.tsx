@@ -17,7 +17,7 @@ type ApiExam = {
   id: string;
   title: string;
   durationMins: number;
-  status: string; // scheduled | live | under_evaluation | results_published | completed
+  status: string; // scheduled | live | under_evaluation | ready_to_publish | completed
   totalMarks: number;
   maxAttempts: number;
   scheduledAt: string | null;
@@ -104,7 +104,7 @@ export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTe
   const recent = reports.slice(0, 3);
 
   return (
-    <TeacherShell tenant={tenant} user={user} active="home" noCoaching={!tenant}>
+    <TeacherShell tenant={tenant} user={user} role="student" active="home" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
           {/* ── Greeting ─────────────────────────────────────────────────── */}
           <div style={{ display: "flex", alignItems: "flex-end", gap: 12, marginBottom: 4 }}>
@@ -147,7 +147,7 @@ export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTe
                     Attempt in progress{inProgress.endsAt ? ` · closes ${fmtWhen(inProgress.endsAt)}` : ""}
                   </div>
                 </div>
-                <Button variant="app" size="lg" arrow onClick={() => router.push(`/exams/${inProgress.id}/attempt`)}>
+                <Button variant="app" size="lg" arrow onClick={() => router.push(`/student/exams/${inProgress.id}/attempt`)}>
                   Resume
                 </Button>
               </div>
@@ -159,7 +159,7 @@ export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTe
             <>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <h3 style={{ fontSize: 17, margin: 0 }}>Due soon</h3>
-                <Button variant="ghost" size="sm" onClick={() => router.push("/dashboard?screen=Exams")}>See all</Button>
+                <Button variant="ghost" size="sm" onClick={() => router.push("/student/exams")}>See all</Button>
               </div>
               <div style={{ display: "flex", gap: 16, overflowX: "auto", paddingBottom: 4, marginBottom: 28 }}>
                 {dueSoon.map((e) => {
@@ -184,7 +184,7 @@ export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTe
                         size="sm"
                         style={{ marginTop: 4 }}
                         disabled={!isLive}
-                        onClick={() => router.push(`/exams/${e.id}/intro`)}
+                        onClick={() => router.push(`/student/exams/${e.id}/intro`)}
                       >
                         {isLive ? "Start" : "Locked"}
                       </Button>
@@ -236,7 +236,7 @@ export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTe
                           {r.status === "pending" ? "AI review pending" : `${r.totalScore}/${r.maxScore} (${pct}%)`}
                         </div>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => router.push(`/exams/${r.examId}/result?session=${r.sessionId}`)}>
+                      <Button variant="ghost" size="sm" onClick={() => router.push(`/student/exams/${r.examId}/result?session=${r.sessionId}`)}>
                         View report
                       </Button>
                     </Card>
@@ -257,7 +257,7 @@ export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTe
               </div>
               <p style={{ fontSize: 13.5, margin: "2px 0 0", color: "var(--text-body)" }}>Free and paid mocks from institutes across India.</p>
             </div>
-            <Button variant="secondary" arrow onClick={() => router.push("/exams/public")}>
+            <Button variant="secondary" arrow onClick={() => router.push("/mocks")}>
               Browse mocks
             </Button>
           </Card>

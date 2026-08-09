@@ -25,7 +25,12 @@ function SignupContent() {
     e.preventDefault();
     setError(""); setLoading(true);
     try {
-      await api.post("/api/auth/sign-up/email", { name, email, password });
+      // Sent explicitly even though 'student' is the server default, so the
+      // role toggle above is visible in the request rather than implied by
+      // which of the two pages you happened to be on.
+      await api.post("/api/auth/sign-up/email", {
+        name, email, password, signupIntent: "student",
+      });
       setDone(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");

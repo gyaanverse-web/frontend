@@ -178,6 +178,9 @@ export default function AccountPage() {
                     )}
                   </td>
                 </tr>
+                {/* The ACCOUNT role, which is what this page is about. It can
+                    differ from the role held inside a given coaching — that one
+                    comes from `useTenantSession`. Display only; gates nothing. */}
                 <tr>
                   <td style={lc}>Role</td>
                   <td style={{ ...cell, textTransform: "capitalize" }}>{user.role.replace(/_/g, " ")}</td>

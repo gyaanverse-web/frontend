@@ -88,13 +88,13 @@ export function hasTenantContext(): boolean {
 /**
  * Build the absolute URL for a specific tenant subdomain.
  *
- *   staging → https://niazi.staging.gyaanverse.com/dashboard
- *   prod    → https://niazi.gyaanverse.com/dashboard
- *   dev     → http://niazi.lvh.me:3000/dashboard
+ *   staging → https://niazi.staging.gyaanverse.com/coaching/dashboard
+ *   prod    → https://niazi.gyaanverse.com/coaching/dashboard
+ *   dev     → http://niazi.lvh.me:3000/coaching/dashboard
  *
  * The auth cookie's Domain is the registrable root, so the session survives the hop.
  */
-export function buildTenantUrl(slug: string, path: string = "/dashboard"): string {
+export function buildTenantUrl(slug: string, path: string = "/coaching/dashboard"): string {
   if (typeof window === "undefined") return path;
   const { protocol, hostname, port } = window.location;
   const portSuffix = port ? `:${port}` : "";
@@ -118,7 +118,7 @@ export function buildTenantUrl(slug: string, path: string = "/dashboard"): strin
  * to create or join a coaching). In staging this is `staging.gyaanverse.com`,
  * in prod `app.gyaanverse.com`, in dev `app.lvh.me`.
  */
-export function appHostUrl(path: string = "/dashboard"): string {
+export function appHostUrl(path: string = "/coaching/dashboard"): string {
   if (typeof window === "undefined") return path;
   const { protocol, port } = window.location;
   const portSuffix = port ? `:${port}` : "";

@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { api } from "@/lib/api";
-import { inputBase as inp } from "@/lib/uiStyles";
 
 // Cascading Subject → Module → Chapter → Section → Concept selector.
 // Each level below Subject is optional ("— any —"); children lazy-load when a
@@ -32,8 +31,8 @@ export function deepestId(p: HierarchyPath): { key: keyof HierarchyPath; id: str
 
 function PField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-      <label style={{ fontSize: "11px", color: "#555" }}>{label}</label>
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      <span className="gv-label">{label}</span>
       {children}
     </div>
   );
@@ -97,9 +96,9 @@ export function HierarchyPicker({
   const sel = (v: string | undefined) => v ?? "";
 
   return (
-    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "flex-end" }}>
+    <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
       <PField label="Subject *">
-        <select value={sel(value.subjectId)} onChange={(e) => pickSubject(e.target.value)} style={{ ...inp, minWidth: "150px" }}>
+        <select className="gv-select" value={sel(value.subjectId)} onChange={(e) => pickSubject(e.target.value)} style={{ minWidth: 170 }}>
           <option value="">— select —</option>
           {subjects.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
         </select>
@@ -107,7 +106,7 @@ export function HierarchyPicker({
 
       {value.subjectId && (
         <PField label="Module">
-          <select value={sel(value.moduleId)} onChange={(e) => pickModule(e.target.value)} style={{ ...inp, minWidth: "140px" }}>
+          <select className="gv-select" value={sel(value.moduleId)} onChange={(e) => pickModule(e.target.value)} style={{ minWidth: 160 }}>
             <option value="">— any —</option>
             {modules.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
@@ -116,7 +115,7 @@ export function HierarchyPicker({
 
       {value.moduleId && (
         <PField label="Chapter">
-          <select value={sel(value.chapterId)} onChange={(e) => pickChapter(e.target.value)} style={{ ...inp, minWidth: "140px" }}>
+          <select className="gv-select" value={sel(value.chapterId)} onChange={(e) => pickChapter(e.target.value)} style={{ minWidth: 160 }}>
             <option value="">— any —</option>
             {chapters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
@@ -125,7 +124,7 @@ export function HierarchyPicker({
 
       {includeDeep && value.chapterId && (
         <PField label="Section">
-          <select value={sel(value.sectionId)} onChange={(e) => pickSection(e.target.value)} style={{ ...inp, minWidth: "140px" }}>
+          <select className="gv-select" value={sel(value.sectionId)} onChange={(e) => pickSection(e.target.value)} style={{ minWidth: 160 }}>
             <option value="">— any —</option>
             {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
           </select>
@@ -134,7 +133,7 @@ export function HierarchyPicker({
 
       {includeDeep && value.sectionId && (
         <PField label="Concept">
-          <select value={sel(value.conceptId)} onChange={(e) => pickConcept(e.target.value)} style={{ ...inp, minWidth: "140px" }}>
+          <select className="gv-select" value={sel(value.conceptId)} onChange={(e) => pickConcept(e.target.value)} style={{ minWidth: 160 }}>
             <option value="">— any —</option>
             {concepts.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>

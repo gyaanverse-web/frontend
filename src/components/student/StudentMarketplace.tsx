@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
 import { Card, Badge, Button, Icon, Input, Select } from "@/components/ui";
 import { api } from "@/lib/api";
+import { useUrlSearch, useUrlState } from "@/lib/useUrlState";
 
 type ShellUser = { name: string; role?: string };
 type ShellTenant = { name: string; slug: string } | null;
@@ -27,6 +28,20 @@ type PublicExam = {
 type Subject = { id: string; name: string; gradeLevel: string | null };
 
 type PriceFilter = "Free & Paid" | "Free only" | "Paid only";
+
+// The dropdown reads in prose; the URL reads in slugs. `?price=free` says the
+// same thing as "Free only" without the ampersand and spaces.
+const PRICE_BY_SLUG: Record<string, PriceFilter> = {
+  all: "Free & Paid",
+  free: "Free only",
+  paid: "Paid only",
+};
+const SLUG_BY_PRICE: Record<PriceFilter, string> = {
+  "Free & Paid": "all",
+  "Free only": "free",
+  "Paid only": "paid",
+};
+const PRICE_SLUGS: readonly string[] = Object.keys(PRICE_BY_SLUG);
 
 function priceLabel(e: PublicExam): string {
   return e.visibility === "public_free" ? "Free" : `₹${e.price ?? "—"}`;
@@ -84,11 +99,6 @@ export function StudentMarketplace({ user, tenant }: { user: ShellUser; tenant: 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const [search, setSearch] = useState("");
-  const [subjectFilter, setSubjectFilter] = useState("All subjects");
-  const [gradeFilter, setGradeFilter] = useState("All grades");
-  const [priceFilter, setPriceFilter] = useState<PriceFilter>("Free & Paid");
-
   useEffect(() => {
     let cancelled = false;
 
@@ -133,6 +143,23 @@ export function StudentMarketplace({ user, tenant }: { user: ShellUser; tenant: 
     [exams],
   );
 
+  const subjectOptions = ["All subjects", ...subjects.map((s) => s.name)];
+  const gradeOptions = ["All grades", ...grades.map((g) => `Grade ${g}`)];
+
+  // Filters live in the URL so a student can share "the free Physics mocks" as a
+  // link, and so coming back from an exam they opened restores the list they
+  // were browsing instead of the unfiltered grid.
+  //
+  // Subject and grade accept whatever the catalog currently offers, which is
+  // only known after the fetch — until then the options list is just the "All …"
+  // sentinel and a deep-linked value reads as that. It resolves itself on the
+  // render after the data lands, and nothing is written to the URL meanwhile.
+  const [search, setSearch] = useUrlSearch("q");
+  const [subjectFilter, setSubjectFilter] = useUrlState("subject", subjectOptions, "All subjects");
+  const [gradeFilter, setGradeFilter] = useUrlState("grade", gradeOptions, "All grades");
+  const [priceSlug, setPriceSlug] = useUrlState("price", PRICE_SLUGS, "all");
+  const priceFilter = PRICE_BY_SLUG[priceSlug];
+
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return exams.filter((e) => {
@@ -149,14 +176,11 @@ export function StudentMarketplace({ user, tenant }: { user: ShellUser; tenant: 
   // The intro screen resolves purchase state itself (free/assigned/purchased →
   // start; unpurchased paid → checkout wall), so every card lands there.
   function openMock(m: PublicExam) {
-    router.push(`/exams/${m.id}/intro`);
+    router.push(`/student/exams/${m.id}/intro`);
   }
 
-  const subjectOptions = ["All subjects", ...subjects.map((s) => s.name)];
-  const gradeOptions = ["All grades", ...grades.map((g) => `Grade ${g}`)];
-
   return (
-    <TeacherShell tenant={tenant} user={user} active="marketplace" noCoaching={!tenant}>
+    <TeacherShell tenant={tenant} user={user} role="student" active="marketplace" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>
@@ -189,7 +213,7 @@ export function StudentMarketplace({ user, tenant }: { user: ShellUser; tenant: 
           <Select
             options={["Free & Paid", "Free only", "Paid only"]}
             value={priceFilter}
-            onChange={(e) => setPriceFilter(e.target.value as PriceFilter)}
+            onChange={(e) => setPriceSlug(SLUG_BY_PRICE[e.target.value as PriceFilter])}
             wrapperStyle={{ width: 150 }}
           />
         </div>

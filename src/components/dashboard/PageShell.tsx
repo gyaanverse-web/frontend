@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { getSession } from "@/lib/sessionStore";
 import { Logo, Avatar, Eyebrow } from "@/components/ui";
 import { NotificationBell } from "@/components/NotificationBell";
 
-type SessionUser = { name: string; role?: string };
+// Only the display name is used here — the shell renders no role-gated chrome.
+type SessionUser = { name: string };
 
 export interface PageShellProps {
   /** Page heading. */
@@ -27,8 +28,7 @@ export function PageShell({ title, eyebrow, action, maxWidth = 880, showBell = t
   const [user, setUser] = useState<SessionUser | null>(null);
 
   useEffect(() => {
-    api
-      .get<{ user: SessionUser | null }>("/api/auth/get-session")
+    getSession()
       .then((r) => setUser(r?.user ?? null))
       .catch(() => {});
   }, []);
@@ -39,7 +39,7 @@ export function PageShell({ title, eyebrow, action, maxWidth = 880, showBell = t
         <Link href="/" aria-label="Gyanverse home">
           <Logo size={18} />
         </Link>
-        <Link href="/dashboard" className="gv-btn gv-btn--ghost gv-btn--sm" style={{ gap: 6 }}>
+        <Link href="/coaching/dashboard" className="gv-btn gv-btn--ghost gv-btn--sm" style={{ gap: 6 }}>
           <span aria-hidden="true">←</span>
           <span>Dashboard</span>
         </Link>
