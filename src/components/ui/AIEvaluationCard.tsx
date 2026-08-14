@@ -1,6 +1,5 @@
 import type { HTMLAttributes, ReactNode } from "react";
 import { Badge } from "./Badge";
-import { Button } from "./Button";
 import { ScoreBadge } from "./ScoreBadge";
 import { ScannedUpload, type ScannedStep } from "./ScannedUpload";
 import { FeedbackCallout } from "./FeedbackCallout";
@@ -19,9 +18,16 @@ export interface AIEvaluationCardProps extends HTMLAttributes<HTMLDivElement> {
   mistake?: ReactNode;
   alternative?: ReactNode;
   tip?: ReactNode;
-  teacherOverride?: boolean;
-  onOverride?: () => void;
 }
+
+// `teacherOverride` / `onOverride` used to live here, wired to nothing. They are
+// gone rather than implemented: the client's 2026-08-12 decision routes every
+// manual score correction to a Gyanverse operator via /internal/evaluation/*,
+// never to the coaching. A teacher-facing "Override Score" button is a
+// teacher-facing statement that the AI got it wrong, which is exactly the
+// failure-visibility the resilience work removes — and it would have been the
+// only screen in the product inviting a teacher to second-guess the USP.
+// See docs/decisions/2026-08-12-evaluation-backstop.md.
 
 /** The signature dark AI-evaluation card (live-site screens #24/#30). status: 'evaluated' | 'evaluating' | 'pending'. */
 export function AIEvaluationCard({
@@ -35,8 +41,6 @@ export function AIEvaluationCard({
   mistake = null,
   alternative = null,
   tip = null,
-  teacherOverride = false,
-  onOverride = () => {},
   style,
   ...rest
 }: AIEvaluationCardProps) {
@@ -125,17 +129,6 @@ export function AIEvaluationCard({
           {alternative}
           {tip && <div style={{ marginTop: 6 }}>Tip: {tip}</div>}
         </FeedbackCallout>
-      )}
-
-      {teacherOverride && status === "evaluated" && (
-        <div style={{ display: "flex", alignItems: "center", gap: 12, paddingTop: 2 }}>
-          <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-muted)", flex: 1 }}>
-            Disagree with the AI score?
-          </span>
-          <Button variant="secondary" size="sm" onClick={onOverride}>
-            Override Score
-          </Button>
-        </div>
       )}
     </div>
   );

@@ -28,6 +28,23 @@ export type TeacherReportRow = {
   createdAt: string;
 };
 
+/**
+ * `awaitingReport` of the same call — a student whose paper is in but whose
+ * report does not exist yet.
+ *
+ * Carries no score and no reason, because the API deliberately sends neither: the
+ * list mixes papers still being evaluated with papers held for a final check by
+ * Gyanverse, and the teacher must not be able to tell which is which. Render it
+ * with one neutral label for every row.
+ */
+export type AwaitingReportRow = {
+  sessionId: string;
+  studentId: string;
+  studentName: string;
+  studentEmail: string | null;
+  submittedAt: string | null;
+};
+
 /** Item of `GET /tenant/reports/:reportId`. `feedback` is non-null iff the AI graded it. */
 export type ReportItem = {
   id: string;
@@ -146,6 +163,7 @@ const emptyCard: CSSProperties = {
  */
 export function ExamReportsPanel({ examId, tenantSlug, questions, published }: ExamReportsPanelProps) {
   const [reports, setReports] = useState<TeacherReportRow[]>([]);
+  const [awaiting, setAwaiting] = useState<AwaitingReportRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -168,7 +186,7 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
   const [reloadKey, setReloadKey] = useState(0);
 
   const fetchReports = useCallback(
-    () => api.get<{ reports: TeacherReportRow[] }>(
+    () => api.get<{ reports: TeacherReportRow[]; awaitingReport: AwaitingReportRow[] }>(
       `/tenant/exams/${examId}/reports`,
       { tenant: tenantSlug },
     ),
@@ -182,6 +200,7 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
         const data = await fetchReports();
         if (cancelled) return;
         setReports(data.reports);
+        setAwaiting(data.awaitingReport ?? []);
         setErr("");
       } catch (e) {
         if (!cancelled) setErr(e instanceof Error ? e.message : "Failed to load reports");
@@ -191,6 +210,20 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
     })();
     return () => { cancelled = true; };
   }, [fetchReports, reloadKey]);
+
+  // Re-fetch while anyone is still waiting. Both reasons a student sits in this
+  // list resolve without the teacher doing anything — evaluation finishes, or a
+  // Gyanverse operator scores the answer — so the list has to be able to empty
+  // itself, or the teacher is left refreshing a page to find out whether the
+  // thing they were told needs nothing from them is done.
+  // `reloadKey` is in the deps so each poll re-arms the next one. Without it the
+  // effect would not re-run when a fetch returned the same number of waiting
+  // students, and the polling would stop after exactly one round.
+  useEffect(() => {
+    if (loading || err || awaiting.length === 0) return;
+    const timer = setTimeout(() => setReloadKey(k => k + 1), 15000);
+    return () => clearTimeout(timer);
+  }, [awaiting.length, loading, err, reloadKey]);
 
   const retry = useCallback(() => {
     setLoading(true);
@@ -210,6 +243,17 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
     if (sort === "name") rows.sort((a, b) => a.studentName.localeCompare(b.studentName));
     return rows;
   }, [reports, query, sort]);
+
+  // Same search, so a teacher looking for one student finds them whether or not
+  // their report exists yet — which is the entire point of showing this list.
+  // Not sorted by score, because there is no score to sort by.
+  const visibleAwaiting = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return awaiting;
+    return awaiting.filter(a =>
+      a.studentName.toLowerCase().includes(q) ||
+      (a.studentEmail ?? "").toLowerCase().includes(q));
+  }, [awaiting, query]);
 
   // ── Stats ───────────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -408,7 +452,10 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
       </div>
     );
   }
-  if (reports.length === 0) {
+  // Only truly empty when nobody is waiting either — otherwise the teacher gets
+  // "no reports yet" on a screen that could be naming the students it is waiting
+  // on, which is the gap this list closes.
+  if (reports.length === 0 && awaiting.length === 0) {
     return (
       <div className="gv-card" style={emptyCard}>
         No reports yet. They appear here as each student&rsquo;s paper finishes evaluation.
@@ -453,10 +500,17 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
         </span>
       </div>
 
-      {visible.length === 0 ? (
+      {/* Both lists empty can only happen under an active search — the early
+          return above already covers "nothing on this exam at all". */}
+      {visible.length === 0 && visibleAwaiting.length === 0 ? (
         <div className="gv-card" style={emptyCard}>No student matches &ldquo;{query}&rdquo;.</div>
       ) : (
-        <DataTable columns={columns} rows={visible} onRowClick={(r) => void openAt(visible.findIndex(v => v.id === r.id))} />
+        <>
+          <AwaitingReportList rows={visibleAwaiting} />
+          {visible.length > 0 && (
+            <DataTable columns={columns} rows={visible} onRowClick={(r) => void openAt(visible.findIndex(v => v.id === r.id))} />
+          )}
+        </>
       )}
 
       <Modal
@@ -496,6 +550,79 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
 // ── Local bits ────────────────────────────────────────────────────────────────
 
 /**
+ * The students this exam is still waiting on, named so the roster adds up.
+ *
+ * Without it, a paper held for a final check is simply absent from the marks
+ * table: 29 rows on a 30-student exam, and the only acknowledgement anywhere is
+ * a count next to the publish button in a different part of the screen.
+ *
+ * Three deliberate restraints, all of them the same decision:
+ *
+ *   1. **One label for every row.** The API cannot tell us why a given student is
+ *      here and must not — mid-evaluation and held-for-review look identical, on
+ *      purpose, because distinguishing them would name the student whose answer
+ *      the AI could not read.
+ *   2. **Muted, never a warning.** No amber, no alert icon, no "unresolved". This
+ *      is a step in the process, and colour is read faster than copy.
+ *   3. **Not a table row and not clickable.** There is no score behind it and
+ *      nothing to drill into; a row of em-dashes in a marks table invites a click
+ *      that can only disappoint, and would drag these into the class average.
+ */
+function AwaitingReportList({ rows }: { rows: AwaitingReportRow[] }) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div
+      className="gv-card"
+      style={{
+        padding: "14px 16px",
+        marginBottom: 12,
+        borderStyle: "dashed",
+        background: "var(--surface-inset)",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
+        <Icon name="clock" size={14} style={{ color: "var(--text-muted)" }} />
+        <span
+          style={{
+            fontSize: 11,
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            color: "var(--text-muted)",
+          }}
+        >
+          Final check in progress
+        </span>
+      </div>
+      <p style={{ ...muted, margin: "0 0 10px" }}>
+        {rows.length === 1 ? "This paper is" : `These ${rows.length} papers are`} still being
+        marked, so {rows.length === 1 ? "it has" : "they have"} no report yet. This finishes on
+        its own — nothing for you to do.
+      </p>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {rows.map((r) => (
+          <span
+            key={r.sessionId}
+            title={r.studentEmail ?? undefined}
+            style={{
+              fontSize: 13,
+              color: "var(--text-body)",
+              border: "1px solid var(--border-light)",
+              borderRadius: "var(--radius-sm)",
+              padding: "3px 9px",
+              background: "var(--surface-card)",
+            }}
+          >
+            {r.studentName}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
  * What the AI actually did to one answer: the student's working as it was read,
  * the verdict on each step, and the reasons behind any marks lost.
  *
@@ -514,11 +641,20 @@ function AiFeedbackBlock({ raw }: { raw: string }) {
     );
   }
 
+  // An answer whose stored feedback is an error payload rather than marked-up
+  // working. The teacher is told it is unfinished and nothing more: they cannot
+  // re-run it, and the ones that genuinely cannot be graded by machine are
+  // already with a Gyanverse operator, who will supply a real score. Naming the
+  // engine's error here would be both alarming and useless — see
+  // docs/api/evaluation-resilience-checklist.md, Phase 8.
+  //
+  // `alternative` for the neutral blue edge rather than the crimson `mistake`
+  // one: the colour is half the message here.
   if ("error" in parsed) {
     return (
-      <FeedbackCallout kind="mistake" title="Not evaluated" style={{ marginTop: 12 }}>
-        The AI could not grade this answer ({parsed.error}). It was scored 0 — check the scanned
-        sheet and re-run the evaluation if the upload is legible.
+      <FeedbackCallout kind="alternative" title="Still being processed" style={{ marginTop: 12 }}>
+        This answer is still being marked. The score below is provisional and updates on its own
+        once marking finishes — nothing for you to do.
       </FeedbackCallout>
     );
   }

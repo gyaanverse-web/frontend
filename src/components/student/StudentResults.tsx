@@ -56,7 +56,11 @@ type EvaluatedStep = {
 };
 type AiFeedback = { steps: EvaluatedStep[]; topics: string[] };
 type EvalQuestionResult = { questionId: string; score: number; maxScore: number; aiFeedback: AiFeedback | { error: string } | string | null };
-type Evaluation = { status: "pending" | "processing" | "completed" | "failed"; error: string | null; results: EvalQuestionResult[] };
+// `failed` is deliberately absent, and so is `error`. The API collapses a job
+// between retry attempts into `processing` and never sends the engine's error
+// to a student — evaluation retries itself, so there is no state here that
+// means "this will not finish".
+type Evaluation = { status: "pending" | "processing" | "completed"; results: EvalQuestionResult[] };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 function studentAnswerText(type: QuestionType, answer: Record<string, unknown> | null, payload: Record<string, unknown>): string {
@@ -171,9 +175,15 @@ export function StudentResults({ examId, sessionId }: { examId: string; sessionI
         const data = await api.get<Evaluation | null>(`/sessions/${sessionId}/evaluation`);
         if (cancelled) return;
         setEvaluation(data);
-        if (data && (data.status === "pending" || data.status === "processing")) {
+        // Any job that exists and is not `completed` means "keep polling".
+        // This used to stop on `failed`, which left the card on "Pending"
+        // forever even though the retry ladder went on to grade the paper
+        // minutes later — there is no longer a status that means "this will
+        // never finish", so there is nothing to bail out on. (`null` still
+        // stops: no job row means no subjective answers to grade.)
+        if (data && data.status !== "completed") {
           timer = setTimeout(tick, 4000);
-        } else if (data && data.status === "completed") {
+        } else if (data) {
           try {
             const fresh = await api.get<{ results: SessionResult }>(`/sessions/${sessionId}/results`);
             if (!cancelled) setResult(fresh.results);

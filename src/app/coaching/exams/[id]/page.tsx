@@ -133,6 +133,11 @@ type ExamSession = {
 
 // `GET /tenant/exams/:id/evaluation-progress`. `pending` is exactly what the
 // lifecycle worker blocks on, so it is the number holding the exam back.
+//
+// There is no failure information here and there is not meant to be. Evaluation
+// retries itself indefinitely, and the single case it cannot finish is settled
+// by a Gyanverse operator — so nothing a teacher could see would be anything a
+// teacher could act on.
 type EvalProgress = {
   examId: string;
   status: string;
@@ -144,13 +149,11 @@ type EvalProgress = {
     abandoned: number;
   };
   pending: number;
-  failedJobs: {
-    jobId: string;
-    sessionId: string;
-    status: string;
-    error: string | null;
-    completedAt: string | null;
-  }[];
+  // Answers the AI pipeline handed to Gyanverse for a manual read. The teacher
+  // can do nothing about these and is never asked to — the only thing this
+  // number does on screen is explain a held publish button. Never render it as
+  // an error, and never surface which student or question it belongs to.
+  underReview: number;
 };
 
 // ── DS-mapped inline styles (theme tokens) ──────────────────────────────────────
@@ -1099,12 +1102,11 @@ function ExamDetailInner() {
 
   // ── Evaluation progress (under_evaluation only) ────────────────────────────
   //
-  // An exam leaves `under_evaluation` only when EVERY session is settled, so one
-  // session whose AI evaluation crashed silently holds the whole exam back from
-  // Ready to Publish. Without this panel there is no screen anywhere that would
-  // tell the teacher that, or that anything is wrong at all.
-  // Returns rather than sets, so both the mount effect and the post-retry
-  // refresh below can reuse it without either owning the state write.
+  // An exam leaves `under_evaluation` only when EVERY session is settled, so
+  // this is how far along the cohort is — and, via `underReview`, the only
+  // explanation the teacher gets for a publish button they cannot press.
+  // Returns rather than sets, so every caller can reuse it without owning the
+  // state write.
   const fetchEvalProgress = useCallback(async (): Promise<EvalProgress | null> => {
     if (!tenant || !exam) return null;
     try {
@@ -1121,8 +1123,12 @@ function ExamDetailInner() {
   // Matches the mount effect above: the async IIFE + `cancelled` guard keeps the
   // setState out of the effect body and drops a late response if the exam
   // changes underneath us.
+  // Also fetched in `ready_to_publish`, not just `under_evaluation`: that is
+  // where `underReview` matters. An exam can be fully evaluated and still have
+  // an answer with Gyanverse, and the publish button has to know before the
+  // teacher presses it and gets a 422 back.
   useEffect(() => {
-    if (exam?.status !== "under_evaluation") return;
+    if (exam?.status !== "under_evaluation" && exam?.status !== "ready_to_publish") return;
     let cancelled = false;
     (async () => {
       const data = await fetchEvalProgress();
@@ -1131,21 +1137,12 @@ function ExamDetailInner() {
     return () => { cancelled = true; };
   }, [exam?.status, fetchEvalProgress]);
 
-  async function handleRetryEvaluations() {
-    if (!tenant || !exam) return;
-    setActionErr(""); setActionMsg(""); setActionLoading("retry-evals");
-    try {
-      const res = await api.post<{ requested: number; retried: number }>(
-        `/tenant/exams/${exam.id}/evaluation-progress/retry`, {}, { tenant: tenant.slug },
-      );
-      setActionMsg(`Re-queued ${res.retried} of ${res.requested} failed evaluation${res.requested === 1 ? "" : "s"}.`);
-      setEvalProgress(await fetchEvalProgress());
-    } catch (err) {
-      setActionErr(err instanceof Error ? err.message : "Failed to retry evaluations");
-    } finally {
-      setActionLoading(null);
-    }
-  }
+  // There is deliberately no `handleRetryEvaluations` here. A teacher-facing
+  // retry was a teacher-facing failure — it could not exist without telling them
+  // the AI had broken — and it is now redundant besides: BullMQ's ladder, the
+  // reconciler and the backstop between them re-run everything that can be
+  // re-run. What they cannot finish goes to Gyanverse, and shows up above only
+  // as `underReview`.
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1186,6 +1183,16 @@ function ExamDetailInner() {
   tabs.push("Timeline");
   const activeTab = tabs.includes(tab) ? tab : "Overview";
 
+  // The backstop's publish hold. `publishResults` refuses with a 422 while any
+  // answer on this paper is still with a Gyanverse operator, so the button is
+  // disabled rather than letting the teacher press it and read an error — a
+  // rejected click is a failure they experienced, which is the thing we are
+  // avoiding, and this way the copy is ours rather than the API's.
+  //
+  // Defaults to false when progress has not loaded: an unreachable
+  // evaluation-progress call must never silently block a legitimate publish.
+  const reviewHold = (evalProgress?.underReview ?? 0) > 0;
+
   const headerActions = (
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
       <StatusBadge status={exam.status} />
@@ -1203,17 +1210,45 @@ function ExamDetailInner() {
         </Button>
       )}
       {canEdit && canPublishResults(exam.status) && (
-        <Button variant="app" disabled={actionLoading !== null} onClick={handlePublishResults}>
+        <Button
+          variant="app"
+          disabled={actionLoading !== null || reviewHold}
+          onClick={handlePublishResults}
+        >
           {actionLoading === "publish-results" ? "Publishing…" : "Publish results →"}
         </Button>
       )}
       {/* Owner break-glass. Publishing is the teacher's call, so this is styled
           as a secondary action and labelled to make clear it is standing in for
-          them — it exists so an absent teacher can't strand computed marks. */}
+          them — it exists so an absent teacher can't strand computed marks.
+          The review hold applies here too: it is not a permissions problem the
+          owner can outrank, it is a mark that does not exist yet. */}
       {isOwner && canPublishResultsAsOwner(exam.status) && (
-        <Button variant="secondary" disabled={actionLoading !== null} onClick={handlePublishResults}>
+        <Button
+          variant="secondary"
+          disabled={actionLoading !== null || reviewHold}
+          onClick={handlePublishResults}
+        >
           {actionLoading === "publish-results" ? "Publishing…" : "Publish on teacher's behalf"}
         </Button>
+      )}
+      {/* The only place `underReview` is rendered. Neutral by design: it names
+          Gyanverse as the party doing the work and asks nothing of the teacher.
+          No error styling, no counts of what "failed", no retry — the whole
+          point is that this reads as a step in the process, not a fault. */}
+      {reviewHold && (
+        <span
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: 13,
+            color: "var(--text-muted)",
+            maxWidth: 320,
+          }}
+        >
+          {evalProgress!.underReview === 1 ? "1 answer is" : `${evalProgress!.underReview} answers are`}{" "}
+          getting a final check from Gyanverse. Publishing unlocks automatically
+          when that finishes — nothing for you to do.
+        </span>
       )}
       {isOwner && canArchive(exam.status) && (
         <Button variant="danger" disabled={actionLoading !== null} onClick={handleArchive}>
@@ -1872,25 +1907,14 @@ function ExamDetailInner() {
           <p style={{ margin: 0 }}>
             Sessions are being evaluated. Once every session is done this exam moves to <strong>Ready to Publish</strong>, where you review the reports before releasing them.
           </p>
+          {/* Progress, and nothing else. The count of sessions already done is
+              reassuring; the count still outstanding was read as a stall, and
+              the failure count and its retry button are gone entirely — see the
+              note on `EvalProgress`. */}
           {evalProgress && (
             <p style={{ margin: "6px 0 0" }}>
               {evalProgress.sessions.evaluated} of {evalProgress.sessions.total} evaluated
-              {evalProgress.pending > 0 && ` · ${evalProgress.pending} still pending`}
-              {evalProgress.failedJobs.length > 0 && (
-                <span style={{ color: "var(--danger)" }}>
-                  {" "}· {evalProgress.failedJobs.length} failed
-                </span>
-              )}
             </p>
-          )}
-          {/* The retry is the point of the panel: a failed evaluation would
-              otherwise hold the exam here indefinitely with nothing to click. */}
-          {evalProgress && evalProgress.failedJobs.length > 0 && (
-            <div style={{ marginTop: 8 }}>
-              <Button variant="secondary" disabled={actionLoading !== null} onClick={handleRetryEvaluations}>
-                {actionLoading === "retry-evals" ? "Retrying…" : `Retry ${evalProgress.failedJobs.length} failed evaluation${evalProgress.failedJobs.length === 1 ? "" : "s"}`}
-              </Button>
-            </div>
           )}
         </div>
       )}
