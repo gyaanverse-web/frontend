@@ -37,7 +37,16 @@ export function resolveTenantSlug(): string {
 }
 
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: number) {
+  constructor(
+    message: string,
+    public readonly status: number,
+    /**
+     * Machine-readable error code from the response body, when the endpoint
+     * sends one (Better Auth returns `{ message, code }`). Prefer branching on
+     * this over matching the human-readable message.
+     */
+    public readonly code?: string,
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -82,7 +91,7 @@ async function execFetch<T>(
   if (!res.ok) {
     // The session is gone server-side; anything cached about it is now wrong.
     if (res.status === 401) onUnauthorized?.();
-    throw new ApiError(data?.message ?? `HTTP ${res.status}`, res.status);
+    throw new ApiError(data?.message ?? `HTTP ${res.status}`, res.status, data?.code);
   }
   return data as T;
 }

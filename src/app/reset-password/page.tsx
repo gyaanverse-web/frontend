@@ -3,7 +3,7 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Logo, Button } from "@/components/ui";
 
 const PAGE_BG =
@@ -14,23 +14,25 @@ const MIN_PASSWORD_LENGTH = 8; // mirrors emailAndPassword.minPasswordLength in 
 /**
  * Step 2 of password recovery: the page the emailed link lands on.
  *
- * The link points at the API, which validates the token and then 302s here:
- *   valid   -> /reset-password?token=<token>
- *   expired -> /reset-password?error=INVALID_TOKEN
+ * The link comes straight here as `/reset-password?token=<token>` and never
+ * touches the API first — see appTokenUrl in the backend's shared/urls.ts for
+ * why emailing an API URL is what we're avoiding. Nothing has validated the
+ * token by the time this renders, so a dead link only reveals itself when the
+ * new password is submitted; that failure is promoted to the same "link isn't
+ * valid" screen as a missing token rather than shown as an inline form error.
  *
- * So we never validate the token ourselves — we either have one to submit, or
- * we show the expired state. Note Better Auth reports both "malformed" and
- * "expired" as INVALID_TOKEN, so the copy has to cover both cases.
+ * Note Better Auth reports both "malformed" and "expired" as INVALID_TOKEN, so
+ * the copy has to cover both cases.
  */
 function ResetPasswordContent() {
   const router = useRouter();
   const params = useSearchParams();
   const token = params.get("token");
-  const linkError = params.get("error");
 
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
+  const [linkDead, setLinkDead] = useState(false);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -53,6 +55,10 @@ function ResetPasswordContent() {
       // is a fresh sign-in with the new password.
       router.push("/login?reset=1");
     } catch (err) {
+      if (err instanceof ApiError && err.code === "INVALID_TOKEN") {
+        setLinkDead(true);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Could not reset your password");
       setLoading(false);
     }
@@ -68,9 +74,9 @@ function ResetPasswordContent() {
     maxWidth: 420,
   };
 
-  // No usable token — either the link expired, was truncated in transit, or
-  // someone opened /reset-password directly.
-  if (!token || linkError) {
+  // No usable token — either the link expired, was already spent, was truncated
+  // in transit, or someone opened /reset-password directly.
+  if (!token || linkDead) {
     return (
       <Shell>
         <div style={{ ...card, textAlign: "center" }}>
