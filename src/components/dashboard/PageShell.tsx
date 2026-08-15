@@ -36,7 +36,7 @@ export function PageShell({ title, eyebrow, action, maxWidth = 880, showBell = t
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: "var(--bg-page)" }}>
       <header className="gv-topbar" style={{ position: "sticky", top: 0, zIndex: 5 }}>
-        <Link href="/" aria-label="Gyanverse home">
+        <Link href="/" aria-label="Gyaanverse home">
           <Logo size={18} />
         </Link>
         <Link href="/coaching/dashboard" className="gv-btn gv-btn--ghost gv-btn--sm" style={{ gap: 6 }}>

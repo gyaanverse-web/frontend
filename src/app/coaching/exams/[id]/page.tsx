@@ -136,7 +136,7 @@ type ExamSession = {
 //
 // There is no failure information here and there is not meant to be. Evaluation
 // retries itself indefinitely, and the single case it cannot finish is settled
-// by a Gyanverse operator — so nothing a teacher could see would be anything a
+// by a Gyaanverse operator — so nothing a teacher could see would be anything a
 // teacher could act on.
 type EvalProgress = {
   examId: string;
@@ -149,7 +149,7 @@ type EvalProgress = {
     abandoned: number;
   };
   pending: number;
-  // Answers the AI pipeline handed to Gyanverse for a manual read. The teacher
+  // Answers the AI pipeline handed to Gyaanverse for a manual read. The teacher
   // can do nothing about these and is never asked to — the only thing this
   // number does on screen is explain a held publish button. Never render it as
   // an error, and never surface which student or question it belongs to.
@@ -1125,7 +1125,7 @@ function ExamDetailInner() {
   // changes underneath us.
   // Also fetched in `ready_to_publish`, not just `under_evaluation`: that is
   // where `underReview` matters. An exam can be fully evaluated and still have
-  // an answer with Gyanverse, and the publish button has to know before the
+  // an answer with Gyaanverse, and the publish button has to know before the
   // teacher presses it and gets a 422 back.
   useEffect(() => {
     if (exam?.status !== "under_evaluation" && exam?.status !== "ready_to_publish") return;
@@ -1141,7 +1141,7 @@ function ExamDetailInner() {
   // retry was a teacher-facing failure — it could not exist without telling them
   // the AI had broken — and it is now redundant besides: BullMQ's ladder, the
   // reconciler and the backstop between them re-run everything that can be
-  // re-run. What they cannot finish goes to Gyanverse, and shows up above only
+  // re-run. What they cannot finish goes to Gyaanverse, and shows up above only
   // as `underReview`.
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1184,7 +1184,7 @@ function ExamDetailInner() {
   const activeTab = tabs.includes(tab) ? tab : "Overview";
 
   // The backstop's publish hold. `publishResults` refuses with a 422 while any
-  // answer on this paper is still with a Gyanverse operator, so the button is
+  // answer on this paper is still with a Gyaanverse operator, so the button is
   // disabled rather than letting the teacher press it and read an error — a
   // rejected click is a failure they experienced, which is the thing we are
   // avoiding, and this way the copy is ours rather than the API's.
@@ -1233,7 +1233,7 @@ function ExamDetailInner() {
         </Button>
       )}
       {/* The only place `underReview` is rendered. Neutral by design: it names
-          Gyanverse as the party doing the work and asks nothing of the teacher.
+          Gyaanverse as the party doing the work and asks nothing of the teacher.
           No error styling, no counts of what "failed", no retry — the whole
           point is that this reads as a step in the process, not a fault. */}
       {reviewHold && (
@@ -1246,7 +1246,7 @@ function ExamDetailInner() {
           }}
         >
           {evalProgress!.underReview === 1 ? "1 answer is" : `${evalProgress!.underReview} answers are`}{" "}
-          getting a final check from Gyanverse. Publishing unlocks automatically
+          getting a final check from Gyaanverse. Publishing unlocks automatically
           when that finishes — nothing for you to do.
         </span>
       )}

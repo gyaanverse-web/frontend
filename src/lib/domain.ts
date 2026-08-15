@@ -30,7 +30,7 @@ export const APP_HOST = process.env.NEXT_PUBLIC_APP_HOST ?? "";
  * Root domain used for display strings ("your-slug.<root>"). Falls back to the
  * legacy brand domain when unconfigured so copy still renders during SSR/dev.
  */
-export const TENANT_ROOT_DOMAIN = APP_ROOT_DOMAIN || "gyanverse.com";
+export const TENANT_ROOT_DOMAIN = APP_ROOT_DOMAIN || "gyaanverse.com";
 
 // Subdomains that are NOT tenants. MIRROR of the backend's RESERVED_SLUGS in
 // `backend/src/config/reserved-slugs.ts`, which is the source of truth and the
@@ -75,7 +75,7 @@ export const RESERVED_SUBDOMAINS = new Set([
   "edit", "create", "delete", "remove", "null", "undefined", "none", "true",
   "false", "example", "sample", "default", "public", "private", "index",
 
-  // Brand names.
+  // Brand names, including the common misspelling of our own domain.
   "gyaanverse", "gyanverse", "gyaan", "gyan",
 ]);
 

@@ -2,6 +2,6 @@
    so the Google Fonts load sits above Tailwind and the DS token layer. */
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
-/* Gyanverse design system — brand tokens + .gv-* component classes.
+/* Gyaanverse design system — brand tokens + .gv-* component classes.
    Loaded after Tailwind so the DS base resets win over preflight. */
 @import "../styles/ds/index.css";

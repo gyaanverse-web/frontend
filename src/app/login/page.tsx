@@ -153,7 +153,7 @@ function LoginContent() {
       >
         <h2 style={{ fontSize: 28, marginBottom: 6 }}>Sign in.</h2>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)", marginBottom: 28 }}>
-          Welcome back to Gyanverse.
+          Welcome back to Gyaanverse.
         </p>
 
         {/* Method tabs — pill switcher */}
@@ -302,7 +302,7 @@ function LoginContent() {
           <span style={{ flex: 1, height: 1, background: "var(--border-light)" }} />
         </div>
         <p style={{ textAlign: "center", fontSize: 14, color: "var(--text-body)", margin: 0 }}>
-          New to Gyanverse?{" "}
+          New to Gyaanverse?{" "}
           <Link href="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>
             Create account
           </Link>

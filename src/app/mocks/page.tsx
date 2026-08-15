@@ -209,7 +209,7 @@ export default function PublicExamsPage() {
       </main>
 
       <footer style={{ borderTop: "1px solid var(--border-default)", padding: "14px 28px", fontSize: 13, color: "var(--text-muted)" }}>
-        &copy; {new Date().getFullYear()} Gyanverse
+        &copy; {new Date().getFullYear()} Gyaanverse
       </footer>
     </div>
   );

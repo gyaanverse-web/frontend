@@ -51,7 +51,7 @@ export function HomeNav() {
         zIndex: 20,
       }}
     >
-      <Link href="/" aria-label="Gyanverse home" style={{ display: "inline-flex" }}>
+      <Link href="/" aria-label="Gyaanverse home" style={{ display: "inline-flex" }}>
         <Logo size={22} />
       </Link>
 

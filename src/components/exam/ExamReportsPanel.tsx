@@ -34,7 +34,7 @@ export type TeacherReportRow = {
  *
  * Carries no score and no reason, because the API deliberately sends neither: the
  * list mixes papers still being evaluated with papers held for a final check by
- * Gyanverse, and the teacher must not be able to tell which is which. Render it
+ * Gyaanverse, and the teacher must not be able to tell which is which. Render it
  * with one neutral label for every row.
  */
 export type AwaitingReportRow = {
@@ -213,7 +213,7 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
 
   // Re-fetch while anyone is still waiting. Both reasons a student sits in this
   // list resolve without the teacher doing anything — evaluation finishes, or a
-  // Gyanverse operator scores the answer — so the list has to be able to empty
+  // Gyaanverse operator scores the answer — so the list has to be able to empty
   // itself, or the teacher is left refreshing a page to find out whether the
   // thing they were told needs nothing from them is done.
   // `reloadKey` is in the deps so each poll re-arms the next one. Without it the
@@ -644,7 +644,7 @@ function AiFeedbackBlock({ raw }: { raw: string }) {
   // An answer whose stored feedback is an error payload rather than marked-up
   // working. The teacher is told it is unfinished and nothing more: they cannot
   // re-run it, and the ones that genuinely cannot be graded by machine are
-  // already with a Gyanverse operator, who will supply a real score. Naming the
+  // already with a Gyaanverse operator, who will supply a real score. Naming the
   // engine's error here would be both alarming and useless — see
   // docs/api/evaluation-resilience-checklist.md, Phase 8.
   //

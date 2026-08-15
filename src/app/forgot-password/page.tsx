@@ -13,7 +13,7 @@ const PAGE_BG =
  *
  * The backend answers with the same generic message whether or not the account
  * exists (and silently skips phone-only accounts, whose email is a synthetic
- * @phone.gyanverse.app placeholder), so this page must not branch on the
+ * @phone.gyaanverse.app placeholder), so this page must not branch on the
  * response — doing so would leak which addresses are registered.
  */
 export default function ForgotPasswordPage() {

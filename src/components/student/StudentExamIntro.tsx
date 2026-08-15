@@ -291,7 +291,7 @@ export function StudentExamIntro({ examId }: { examId: string }) {
         amount: order.amount,
         currency: order.currency,
         order_id: order.orderId,
-        name: "Gyanverse",
+        name: "Gyaanverse",
         description: exam.title,
         theme: { color: "#1a4db8" },
         modal: { ondismiss: () => setPayLoading(false) },
@@ -387,7 +387,7 @@ export function StudentExamIntro({ examId }: { examId: string }) {
     >
       {/* ── Masthead ─────────────────────────────────────────────────────── */}
       <div style={{ textAlign: "center", paddingBottom: 4 }}>
-        <div style={{ ...LABEL, marginBottom: 8 }}>{tenant?.name ?? "Gyanverse"}</div>
+        <div style={{ ...LABEL, marginBottom: 8 }}>{tenant?.name ?? "Gyaanverse"}</div>
         <h1 style={{
           fontFamily: "var(--font-sans)", fontSize: 25, fontWeight: 700, lineHeight: 1.25,
           margin: 0, color: "var(--text-heading)",

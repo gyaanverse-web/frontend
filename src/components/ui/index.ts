@@ -1,4 +1,4 @@
-// Gyanverse design-system primitives — clean TSX recreations of the
+// Gyaanverse design-system primitives — clean TSX recreations of the
 // design-system bundle (docs/design/screens/_ds), styled by the .gv-* classes in src/styles/ds.
 export { Button } from "./Button";
 export type { ButtonProps, ButtonVariant, ButtonSize } from "./Button";

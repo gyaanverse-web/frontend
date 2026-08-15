@@ -3,7 +3,7 @@ import "./globals.css";
 import "katex/dist/katex.min.css";
 
 export const metadata: Metadata = {
-  title: "Gyanverse",
+  title: "Gyaanverse",
   description: "Coaching institute management platform",
 };
 

@@ -20,7 +20,7 @@ type UserRow = {
   createdAt: string;
 };
 
-const PHONE_EMAIL_SUFFIX = "@phone.gyanverse.app";
+const PHONE_EMAIL_SUFFIX = "@phone.gyaanverse.app";
 
 const lc: CSSProperties = {
   padding: "12px 18px",

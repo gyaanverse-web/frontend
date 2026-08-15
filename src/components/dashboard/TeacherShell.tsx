@@ -89,7 +89,7 @@ export function TeacherShell({
         <header className="gv-topbar" style={{ position: "sticky", top: 0, zIndex: 5 }}>
           <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
             <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em", color: "var(--text-heading)" }}>
-              {noCoaching ? "Gyanverse" : tenant?.name ?? "Loading…"}
+              {noCoaching ? "Gyaanverse" : tenant?.name ?? "Loading…"}
             </span>
             {noCoaching ? (
               <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>

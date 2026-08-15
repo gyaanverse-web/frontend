@@ -13,11 +13,11 @@ import { HomeNav } from "@/components/marketing/HomeNav";
 import styles from "./page.module.css";
 
 export const metadata: Metadata = {
-  title: "Gyanverse — The all-in-one EdTech OS for coaching institutes",
+  title: "Gyaanverse — The all-in-one EdTech OS for coaching institutes",
   description:
     "Run your coaching's entire test program online. Host classes, automate fee transactions, generate mock tests, and pinpoint exact mistakes with AI — all in one platform.",
   openGraph: {
-    title: "Gyanverse — The all-in-one EdTech OS",
+    title: "Gyaanverse — The all-in-one EdTech OS",
     description:
       "Host classes, automate fees, run AI-powered exams, and analyze performance. Built for Indian coaching institutes.",
     type: "website",
@@ -84,7 +84,7 @@ const FEATURES = [
 const TESTIMONIALS = [
   {
     quote:
-      "Gyanverse completely transformed how we run exams. The AI evaluation alone saves our teachers 8 hours every week.",
+      "Gyaanverse completely transformed how we run exams. The AI evaluation alone saves our teachers 8 hours every week.",
     name: "Anil Sharma",
     org: "Sharma Classes, Kota",
   },
@@ -535,7 +535,7 @@ export default function Home() {
         >
           <Logo size={20} onDark />
           <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-muted)" }}>
-            © {new Date().getFullYear()} Gyanverse. All rights reserved.
+            © {new Date().getFullYear()} Gyaanverse. All rights reserved.
           </span>
           <div style={{ flex: 1 }} />
           <div style={{ display: "flex", gap: 22, flexWrap: "wrap" }}>

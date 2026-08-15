@@ -112,7 +112,7 @@ function RegisterContent() {
       >
         <h2 style={{ fontSize: 28, marginBottom: 6 }}>Create your account.</h2>
         <p style={{ fontFamily: "var(--font-body)", fontSize: 15, color: "var(--text-muted)", marginBottom: 28 }}>
-          Set up your coaching institute on Gyanverse. You&apos;ll name your institute right after signing in.
+          Set up your coaching institute on Gyaanverse. You&apos;ll name your institute right after signing in.
         </p>
 
         {/* Role selector — this flow registers a Coaching Owner; students sign up separately */}

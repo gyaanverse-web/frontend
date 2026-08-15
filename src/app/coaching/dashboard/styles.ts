@@ -27,7 +27,7 @@ export function memberRoleBadge(role: string): CSSProperties {
   return { ...base, background: "var(--role-student)" };
 }
 
-// ── Shared inline styles, mapped onto the Gyanverse design-system tokens ──────
+// ── Shared inline styles, mapped onto the Gyaanverse design-system tokens ──────
 // (kept as the legacy names the section components already import)
 
 /** Card / section header bar. */
