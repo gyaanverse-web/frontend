@@ -4,6 +4,20 @@ export type PlanName = "free" | "starter" | "growth" | "pro";
 
 export const PLAN_ORDER: PlanName[] = ["free", "starter", "growth", "pro"];
 
+/**
+ * The full plan matrix, for the **pricing comparison table on PlanSection only**.
+ *
+ * ⚠️ Do not use this to decide what the signed-in coaching may do. That is
+ * `useTenantSession().entitlements`, resolved server-side — this table cannot
+ * see the platform billing switch, and it will not be able to see per-tenant
+ * grants when those land. Reading it as "the current tenant's limits" is the
+ * exact bug that was removed from OverviewSection.
+ *
+ * It survives here because a pricing table has to render all four plans
+ * side-by-side including the ones the tenant is NOT on, which no
+ * entitlements payload describes. It is marketing copy, and it must be kept in
+ * step with `backend/src/config/plans.ts` by hand — nothing enforces that.
+ */
 export const PLANS: Record<PlanName, {
   label: string;
   price: number;
@@ -16,7 +30,9 @@ export const PLANS: Record<PlanName, {
   pro:     { label: "Pro",     price: 5999, limits: { students: 99999, teachers: 99999, classes: 99999, mocks_per_month: 99999, ai_evaluations: 99999 }, features: { analytics: true,  public_mocks: true,  custom_branding: true,  api_access: true  } },
 };
 
-export function fmtLimit(n: number) { return n >= 99999 ? "Unlimited" : String(n); }
+/** Re-exported so the `99999`-means-unmetered rule has exactly one definition,
+ *  shared with the server-resolved entitlements. */
+export { fmtLimit } from "@/lib/entitlements";
 
 /**
  * The signed-in account. Aliases the canonical `SessionUser` so there is one

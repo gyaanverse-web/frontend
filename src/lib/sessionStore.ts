@@ -4,6 +4,7 @@ import { api, ApiError, setUnauthorizedHandler } from "./api";
 // Types only — erased at compile time, so this is not a runtime import cycle
 // even though useTenantSession imports the functions below.
 import type { SessionUser, TenantBase, TenantRole } from "./useTenantSession";
+import type { Entitlements } from "./entitlements";
 
 /**
  * One shared answer to "who is signed in, and to which coaching?".
@@ -49,6 +50,11 @@ export interface SessionPayload {
 export interface TenantPayload<T extends TenantBase = TenantBase> {
   tenant: T;
   membershipRole: TenantRole;
+  /**
+   * Optional so a frontend deploy that lands ahead of the API's still renders —
+   * callers fall back to `NO_BILLING`. Once both are out it is always present.
+   */
+  entitlements?: Entitlements;
 }
 
 type Settled = { ok: true; value: unknown } | { ok: false; error: unknown };

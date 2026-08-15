@@ -4,7 +4,9 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Card, Badge, Button, Icon, Eyebrow } from "@/components/ui";
 import type { IconName } from "@/components/ui";
-import { PLANS, fmtLimit, type PlanName, type Tenant, type Member, type Class, type Exam } from "../types";
+import { fmtLimit } from "@/lib/entitlements";
+import type { Entitlements } from "@/lib/entitlements";
+import type { Tenant, Member, Class, Exam } from "../types";
 import { examStatusLabel } from "@/lib/examStatus";
 
 /**
@@ -15,8 +17,20 @@ import { examStatusLabel } from "@/lib/examStatus";
  * buttons navigate to OWNER_ONLY_SCREENS that simply bounce a teacher back
  * here. Hiding them removes information a teacher has no use for AND two
  * controls that silently did nothing.
+ *
+ * The plan-usage card needs BOTH `isOwner` and live billing. While billing is
+ * off there are no limits to be near and no plan to upgrade to, so a card
+ * reading "0 / Unlimited" four times over is noise pointing at a product that
+ * does not exist yet.
  */
-type Props = { tenant: Tenant; isOwner: boolean; onNavigate: (screen: string) => void };
+type Props = {
+  tenant: Tenant;
+  isOwner: boolean;
+  entitlements: Entitlements;
+  /** Navigate to another dashboard screen. `screen` may carry a `?tab=` suffix
+   *  for the tabbed Settings screen, e.g. `"Settings&tab=billing"`. */
+  onNavigate: (screen: string) => void;
+};
 
 type ActivityItem = { icon: IconName; text: string; date: number; tone: "success" | "accent" | "danger" | "neutral" };
 
@@ -32,7 +46,7 @@ function relativeTime(ts: number): string {
   return new Date(ts).toLocaleDateString();
 }
 
-export function OverviewSection({ tenant, isOwner, onNavigate }: Props) {
+export function OverviewSection({ tenant, isOwner, entitlements, onNavigate }: Props) {
   const [members, setMembers] = useState<Member[] | null>(null);
   const [classes, setClasses] = useState<Class[] | null>(null);
   const [exams, setExams] = useState<Exam[] | null>(null);
@@ -52,8 +66,12 @@ export function OverviewSection({ tenant, isOwner, onNavigate }: Props) {
     });
   }, [tenant.slug]);
 
-  const plan = (["free", "starter", "growth", "pro"].includes(tenant.plan) ? tenant.plan : "free") as PlanName;
-  const limits = PLANS[plan].limits;
+  // Limits come from the server, not from a client-side copy of the plan matrix.
+  // The old code read `PLANS[tenant.plan]` in the browser, which meant a second
+  // pricing table to keep in step with config/plans.ts and no way to express a
+  // coaching whose entitlements are not a pure function of its plan name.
+  const { plan, limits } = entitlements;
+  const showPlanCard = isOwner && entitlements.billingEnabled;
 
   const studentCount = members?.filter((m) => m.role === "student").length ?? null;
   const teacherCount = members?.filter((m) => m.role === "teacher").length ?? null;
@@ -111,7 +129,7 @@ export function OverviewSection({ tenant, isOwner, onNavigate }: Props) {
 
       {/* Activity + plan usage. With no plan card the activity list takes the
           full width rather than leaving a 300px gap where it used to sit. */}
-      <div style={{ display: "grid", gridTemplateColumns: isOwner ? "minmax(0, 1fr) 300px" : "minmax(0, 1fr)", gap: 18, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: showPlanCard ? "minmax(0, 1fr) 300px" : "minmax(0, 1fr)", gap: 18, alignItems: "start" }}>
         <Card padding={0}>
           <div style={{ padding: "13px 18px", borderBottom: "1px solid var(--border-default)", display: "flex", alignItems: "center" }}>
             <h4 style={{ flex: 1, margin: 0, fontSize: 14 }}>Recent activity</h4>
@@ -149,7 +167,7 @@ export function OverviewSection({ tenant, isOwner, onNavigate }: Props) {
           )}
         </Card>
 
-        {isOwner && (
+        {showPlanCard && (
           <Card padding={18}>
             <h4 style={{ margin: "0 0 14px", fontSize: 14 }}>Plan usage</h4>
             <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
@@ -160,10 +178,10 @@ export function OverviewSection({ tenant, isOwner, onNavigate }: Props) {
             </div>
             <div style={{ marginTop: 14, paddingTop: 12, borderTop: "1px solid var(--border-default)" }}>
               <div style={{ fontSize: 12, color: "var(--text-muted)", fontFamily: "var(--font-body)", marginBottom: 10 }}>
-                {PLANS[plan].label} plan
+                {plan.label} plan
               </div>
-              {plan !== "pro" && (
-                <Button variant="app" size="sm" arrow style={{ width: "100%" }} onClick={() => onNavigate("Plan & Billing")}>
+              {plan.name !== "pro" && (
+                <Button variant="app" size="sm" arrow style={{ width: "100%" }} onClick={() => onNavigate("Settings&tab=billing")}>
                   Upgrade plan
                 </Button>
               )}

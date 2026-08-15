@@ -17,9 +17,9 @@ export interface NavBarProps {
   right?: ReactNode;
 }
 
-/** Public-facing top bar for the marketplace + exam preview. Unlike PageShell this
- *  renders for signed-out visitors too, so it takes auth state as a prop instead
- *  of fetching a session. */
+/** Public-facing top bar for the marketplace + exam preview. Unlike the in-app
+ *  shell this renders for signed-out visitors too, so it takes auth state as a
+ *  prop instead of fetching a session. */
 export function NavBar({ back, user, onSignOut, activePage, right }: NavBarProps) {
   return (
     <header className="gv-topbar" style={{ position: "sticky", top: 0, zIndex: 5 }}>

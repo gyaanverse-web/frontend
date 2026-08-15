@@ -1,9 +1,12 @@
 import type { CSSProperties } from "react";
-import type { TenantRole } from "@/lib/useTenantSession";
+import type { DisplayRole } from "@/lib/roleLabel";
 
-/** Any role that can be *displayed* — the three tenant roles plus the platform
- *  operator. Purely for labels and colours; never use it to gate behaviour. */
-export type DisplayRole = TenantRole | "super_admin";
+// `DisplayRole` and `ROLE_LABEL` moved to `@/lib/roleLabel` — the shared
+// AppSidebar needs the labels for its account footer, and a component under
+// `components/` must not import from one route's folder. Re-exported here so the
+// dashboard's existing `from "./styles"` imports keep working.
+export type { DisplayRole } from "@/lib/roleLabel";
+export { ROLE_LABEL } from "@/lib/roleLabel";
 
 // ── Role badge colors (DS role palette) ──────────────────────────────────────
 export const ROLE_BADGE: Record<DisplayRole, CSSProperties> = {
@@ -11,13 +14,6 @@ export const ROLE_BADGE: Record<DisplayRole, CSSProperties> = {
   coaching_owner: { background: "var(--role-owner)",      color: "#fff", borderRadius: "var(--radius-pill)" },
   teacher:        { background: "var(--role-teacher)",    color: "#fff", borderRadius: "var(--radius-pill)" },
   student:        { background: "var(--role-student)",    color: "#fff", borderRadius: "var(--radius-pill)" },
-};
-
-export const ROLE_LABEL: Record<DisplayRole, string> = {
-  super_admin:    "Super Admin",
-  coaching_owner: "Coaching Owner",
-  teacher:        "Teacher",
-  student:        "Student",
 };
 
 export function memberRoleBadge(role: string): CSSProperties {

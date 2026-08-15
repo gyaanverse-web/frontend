@@ -257,7 +257,11 @@ export function StudentHome({ user, tenant }: { user: ShellUser; tenant: ShellTe
               </div>
               <p style={{ fontSize: 13.5, margin: "2px 0 0", color: "var(--text-body)" }}>Free and paid mocks from institutes across India.</p>
             </div>
-            <Button variant="secondary" arrow onClick={() => router.push("/mocks")}>
+            {/* /student/marketplace, not /mocks. Both render the same
+                `GET /exams/public` catalogue, but /mocks is the SIGNED-OUT page
+                and carries the public NavBar — sending a signed-in student there
+                dropped them out of the app shell and lost their sidebar. */}
+            <Button variant="secondary" arrow onClick={() => router.push("/student/marketplace")}>
               Browse mocks
             </Button>
           </Card>

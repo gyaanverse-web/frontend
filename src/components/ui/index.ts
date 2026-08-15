@@ -26,6 +26,8 @@ export { Tabs } from "./Tabs";
 export type { TabsProps } from "./Tabs";
 export { DataTable } from "./DataTable";
 export type { DataTableProps, Column } from "./DataTable";
+export { DetailRows } from "./DetailRows";
+export type { DetailRowsProps, DetailRow } from "./DetailRows";
 export { KebabMenu } from "./KebabMenu";
 export type { KebabItem } from "./KebabMenu";
 export { StatCard } from "./StatCard";

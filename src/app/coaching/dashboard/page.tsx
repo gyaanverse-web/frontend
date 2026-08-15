@@ -6,27 +6,23 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { invalidateSession } from "@/lib/sessionStore";
 import { TENANT_ROOT_DOMAIN } from "@/lib/domain";
-import { useTenantSession, type SessionUser } from "@/lib/useTenantSession";
+import { useTenantSession } from "@/lib/useTenantSession";
 import type { Tenant } from "./types";
-import { ROLE_LABEL, sh, cell, lc, inp, btnP, btnS, type DisplayRole } from "./styles";
+import { sh, btnP, btnS, type DisplayRole } from "./styles";
 import { OverviewSection } from "./sections/OverviewSection";
 import { MembersSection } from "./sections/MembersSection";
 import { PeopleAccessSection } from "./sections/PeopleAccessSection";
 import { PlanSection } from "./sections/PlanSection";
-import { SettingsSection } from "./sections/SettingsSection";
 import { DangerSection } from "./sections/DangerSection";
 import { NotificationBell } from "@/components/NotificationBell";
-import { Logo, Badge, Avatar, Button, Eyebrow } from "@/components/ui";
-import type { BadgeRole } from "@/components/ui";
+import { Logo, Badge, Button, Eyebrow, Tabs, DetailRows } from "@/components/ui";
 import { AppSidebar, type AppNavKey } from "@/components/dashboard/AppSidebar";
-import { belongsToStudentArea } from "@/components/dashboard/appNav";
-
-const ROLE_TO_BADGE: Record<string, BadgeRole> = {
-  super_admin: "superadmin",
-  coaching_owner: "owner",
-  teacher: "teacher",
-  student: "student",
-};
+import {
+  belongsToStudentArea,
+  buildSettingsTabs,
+  SETTINGS_TAB_LABEL,
+  type SettingsTabKey,
+} from "@/components/dashboard/appNav";
 
 // Staff-only page: students live at /student and are redirected out below.
 //
@@ -34,21 +30,24 @@ const ROLE_TO_BADGE: Record<string, BadgeRole> = {
 // "Batches" and "Exams" used to be here too, duplicating the real /classes and
 // /exams routes the sidebar actually points at — nothing linked to the in-page
 // copies, so they and their sections were deleted rather than migrated.
-const VALID_SCREENS = ["Overview", "Members", "Invites / Join Codes", "Plan & Billing", "Settings", "Danger Zone"];
+//
+// "Plan & Billing" and "Danger Zone" were screens of their own until they became
+// TABS on Settings — see `renderSettings`. Neither is a daily destination, and a
+// permanent nav row reading "Danger Zone" put "delete this institute" one
+// mis-click from "Settings".
+const VALID_SCREENS = ["Overview", "Members", "Invites / Join Codes", "Settings"];
 
 const DEFAULT_SCREEN = "Overview";
 
 // Screens only a coaching_owner may open. There is no staff-vs-student split
 // left to encode: every role that reaches this render is owner or teacher.
-const OWNER_ONLY_SCREENS = new Set(["Invites / Join Codes", "Plan & Billing", "Settings", "Danger Zone"]);
+const OWNER_ONLY_SCREENS = new Set(["Invites / Join Codes", "Settings"]);
 
 const SCREEN_TO_KEY: Record<string, AppNavKey> = {
   "Overview": "dashboard",
   "Members": "members",
   "Invites / Join Codes": "invites",
-  "Plan & Billing": "plan",
   "Settings": "settings",
-  "Danger Zone": "danger",
 };
 
 function DashboardInner() {
@@ -57,7 +56,7 @@ function DashboardInner() {
 
   // Staff land here, and an owner with no coaching yet gets the "create / join"
   // state rather than a redirect — hence no `allow` and requireTenant: false.
-  const { loading, user, tenant, role, isOwner, noTenant, accountRole, signupIntent, displayRole: navRole, refresh } =
+  const { loading, user, tenant, role, isOwner, entitlements, noTenant, accountRole, signupIntent, displayRole: navRole, refresh } =
     useTenantSession<Tenant>({ requireTenant: false });
 
   // Students have their own area at /student; this page renders nothing for them.
@@ -76,7 +75,15 @@ function DashboardInner() {
 
   const [pageError, setPageError] = useState("");
 
-  const goToScreen = (s: string) => router.push(`/coaching/dashboard?screen=${encodeURIComponent(s)}`);
+  // `s` is a screen name, optionally with a `&tab=…` suffix for the tabbed
+  // Settings screen. Split before encoding — running the whole string through
+  // encodeURIComponent would escape the `&` into `%26` and produce one screen
+  // literally named "Settings&tab=billing", which matches nothing.
+  const goToScreen = (s: string) => {
+    const [screen, ...rest] = s.split("&");
+    const suffix = rest.length ? `&${rest.join("&")}` : "";
+    router.push(`/coaching/dashboard?screen=${encodeURIComponent(screen)}${suffix}`);
+  };
 
   // Coaching institute inline edit
   const [editMode, setEditMode] = useState(false);
@@ -153,8 +160,6 @@ function DashboardInner() {
   // coaching to take a membership role from — that rule now lives in
   // `useTenantSession.displayRole` so every shell resolves it identically.
   const displayRole = (navRole ?? "student") as DisplayRole;
-  const roleLabel = ROLE_LABEL[displayRole] ?? displayRole;
-  const badgeRole = ROLE_TO_BADGE[displayRole] ?? "student";
 
   // ── No tenant ────────────────────────────────────────────────────────────────
   // Only owners and teachers get here at all, and an owner who just registered
@@ -199,13 +204,31 @@ function DashboardInner() {
   if (OWNER_ONLY_SCREENS.has(activeScreen) && !isOwner) activeScreen = DEFAULT_SCREEN;
   const activeKey = SCREEN_TO_KEY[activeScreen] ?? "dashboard";
 
+  // ── Settings tab derived from URL, same rules one level down ──────────────────
+  //
+  // `?tab=` is validated against the tabs this role and this billing state
+  // actually have, so a hand-edited or stale value (`?tab=billing` from before
+  // the platform switch was turned off, where every call 404s) falls back to
+  // General rather than rendering a broken screen.
+  const settingsTabs = buildSettingsTabs(displayRole, entitlements);
+  const requestedTab = searchParams.get("tab") as SettingsTabKey | null;
+  const activeTab: SettingsTabKey =
+    requestedTab && settingsTabs.includes(requestedTab) ? requestedTab : "general";
+
+  const goToTab = (label: string) => {
+    const key = settingsTabs.find((t) => SETTINGS_TAB_LABEL[t] === label) ?? "general";
+    // `replace`, not `push` — switching tabs is not a navigation the Back button
+    // should step through one at a time.
+    router.replace(`/coaching/dashboard?screen=Settings${key === "general" ? "" : `&tab=${key}`}`, { scroll: false });
+  };
+
   // ── Screen content ────────────────────────────────────────────────────────────
 
   function renderScreen() {
     if (!tenant) return null;
     switch (activeScreen) {
       case "Overview":
-        return <OverviewSection tenant={tenant} isOwner={isOwner} onNavigate={goToScreen} />;
+        return <OverviewSection tenant={tenant} isOwner={isOwner} entitlements={entitlements} onNavigate={goToScreen} />;
       case "Members":
         return <ScreenWrap eyebrow={tenant.name} title="Members"><MembersSection tenant={tenant} isOwner={isOwner} /></ScreenWrap>;
       case "Invites / Join Codes":
@@ -214,12 +237,42 @@ function DashboardInner() {
             <PeopleAccessSection tenant={tenant} />
           </ScreenWrap>
         );
-      case "Plan & Billing":
-        return <ScreenWrap eyebrow={tenant.name} title="Plan & billing"><PlanSection tenant={tenant} onTenantChange={refresh} /></ScreenWrap>;
       case "Settings":
         return (
           <ScreenWrap eyebrow={tenant.name} title="Settings">
-            <AccountCard user={user!} roleLabel={roleLabel} badgeRole={badgeRole} />
+            {/* Billing and the danger zone are TABS here, not sidebar rows.
+                Neither is a daily destination, and a permanent "Danger Zone" row
+                put "delete this institute" one mis-click from "Settings". */}
+            <div style={{ marginBottom: 20 }}>
+              <Tabs
+                tabs={settingsTabs.map((t) => SETTINGS_TAB_LABEL[t])}
+                value={SETTINGS_TAB_LABEL[activeTab]}
+                onChange={goToTab}
+              />
+            </div>
+            {renderSettingsTab()}
+          </ScreenWrap>
+        );
+      default:
+        return null;
+    }
+  }
+
+  // Nothing personal on this screen. "Settings" here is the INSTITUTE — its
+  // name, its subjects, its plan, its deletion. The signed-in user's own name,
+  // email verification and alert preferences are a different subject and live at
+  // /account, reachable from the sidebar footer for every role.
+  function renderSettingsTab() {
+    if (!tenant) return null;
+    switch (activeTab) {
+      case "billing":
+        return <PlanSection tenant={tenant} onTenantChange={refresh} />;
+      case "danger":
+        return <DangerSection tenant={tenant} onDeleted={handleCoachingDeleted} />;
+      case "general":
+      default:
+        return (
+          <>
             <CoachingCard
               tenant={tenant}
               isOwner={isOwner}
@@ -236,7 +289,11 @@ function DashboardInner() {
                 setEditForm({ name: tenant.name, logoUrl: tenant.logoUrl ?? "" });
               }}
             />
-            <SettingsSection tenant={tenant} />
+            {/* No "Public mocks" / "Custom domain" card here any more: both wrote
+                columns nothing read. Public exams are gated on the PLAN FEATURE
+                `public_mocks`, and tenants resolve by slug subdomain, never by a
+                custom domain. The form, its route and `tenant_settings` went in
+                migration 0022. */}
             <div style={{ background: "var(--surface-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)", overflow: "hidden", marginBottom: 16 }}>
               <div style={sh}><span>Subject catalog</span></div>
               <div style={{ padding: 16 }}>
@@ -246,12 +303,8 @@ function DashboardInner() {
                 <Button variant="secondary" arrow onClick={() => router.push("/coaching/question-bank?manage=hierarchy")}>Manage catalog</Button>
               </div>
             </div>
-          </ScreenWrap>
+          </>
         );
-      case "Danger Zone":
-        return <ScreenWrap eyebrow={tenant.name} title="Danger zone"><DangerSection tenant={tenant} onDeleted={handleCoachingDeleted} /></ScreenWrap>;
-      default:
-        return null;
     }
   }
 
@@ -260,7 +313,7 @@ function DashboardInner() {
   return (
     <div style={{ display: "flex", minHeight: "100vh", background: "var(--bg-page)" }}>
       {/* Sidebar (shared component — identical on every page) */}
-      <AppSidebar role={displayRole} activeKey={activeKey} onLogout={handleLogout} />
+      <AppSidebar role={displayRole} activeKey={activeKey} user={user} onLogout={handleLogout} />
 
       {/* Main column */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -273,16 +326,15 @@ function DashboardInner() {
             <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>{tenant.slug}.{TENANT_ROOT_DOMAIN}</span>
           </div>
           <div style={{ flex: 1 }} />
-          <Link href="/mocks" className="gv-btn gv-btn--ghost gv-btn--sm"><span>Public mocks</span></Link>
+          {/* Institute, then the bell. Nothing else — deliberately identical to
+              TeacherShell's bar, so the header does not change shape as you move
+              between Dashboard and Exams (the drift AppSidebar exists to
+              prevent). Everything this used to carry said something the shell
+              already said elsewhere: a "Sign out" button beside the sidebar's
+              "Log out", the role beside the sidebar's role badge, a "Public
+              mocks" link no other staff page had, and the avatar + name that now
+              live once, in the sidebar's pinned account footer. */}
           <NotificationBell />
-          <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 4 }}>
-            <Avatar name={user.name} size={28} />
-            <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-heading)" }}>{user.name}</span>
-              <span style={{ fontSize: 11, color: "var(--text-muted)" }}>{roleLabel}</span>
-            </div>
-          </div>
-          <Button variant="secondary" size="sm" onClick={handleLogout}>Sign out</Button>
         </header>
 
         <main style={{ flex: 1, overflowY: "auto", padding: 28 }}>
@@ -322,33 +374,12 @@ function ScreenWrap({ eyebrow, title, children }: { eyebrow: string; title: stri
   );
 }
 
-// ── Account card (Settings screen) ──────────────────────────────────────────────
+// NOTE: the "Account" card that used to head the Settings screen is gone. It
+// showed the signed-in user's name, email verification, role and id — personal
+// details on a screen about the INSTITUTE, and a duplicate of /account, which is
+// now a real destination in every role's sidebar footer.
 
-function AccountCard({ user, roleLabel, badgeRole }: { user: SessionUser; roleLabel: string; badgeRole: BadgeRole }) {
-  return (
-    <div style={{ background: "var(--surface-card)", border: "1px solid var(--border-default)", borderRadius: "var(--radius-md)", boxShadow: "var(--shadow-sm)", overflow: "hidden", marginBottom: 16 }}>
-      <div style={sh}><span>Account</span></div>
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <tbody>
-          <tr><td style={lc}>Name</td><td style={cell}>{user.name}</td></tr>
-          <tr>
-            <td style={lc}>Email</td>
-            <td style={cell}>
-              {user.email}
-              <span style={{ marginLeft: 8 }}>
-                <Badge tone={user.emailVerified ? "success" : "warning"}>{user.emailVerified ? "Verified" : "Unverified"}</Badge>
-              </span>
-            </td>
-          </tr>
-          <tr><td style={lc}>Role</td><td style={cell}><Badge role={badgeRole}>{roleLabel}</Badge></td></tr>
-          <tr><td style={lc}>User ID</td><td style={{ ...cell, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>{user.id}</td></tr>
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-// ── Coaching institute card with inline edit (Settings screen) ──────────────────
+// ── Coaching institute card with inline edit (Settings › General) ───────────────
 
 function CoachingCard({
   tenant,
@@ -382,33 +413,44 @@ function CoachingCard({
         )}
       </div>
 
-      {!editMode ? (
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <tbody>
-            <tr><td style={lc}>Name</td><td style={cell}>{tenant.name}</td></tr>
-            <tr><td style={lc}>Slug</td><td style={{ ...cell, fontFamily: "var(--font-mono)" }}>{tenant.slug}</td></tr>
-            <tr><td style={lc}>Plan</td><td style={cell}>{tenant.plan.charAt(0).toUpperCase() + tenant.plan.slice(1)}</td></tr>
-            <tr>
-              <td style={lc}>Status</td>
-              <td style={cell}><Badge tone={tenant.status === "active" ? "success" : "danger"}>{tenant.status}</Badge></td>
-            </tr>
-            <tr><td style={lc}>Tenant ID</td><td style={{ ...cell, fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>{tenant.id}</td></tr>
-          </tbody>
-        </table>
-      ) : (
-        <div style={{ padding: 16 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            <label style={{ display: "block" }}>
-              <span className="gv-label">Name</span>
-              <input value={editForm.name} onChange={(e) => onChange({ ...editForm, name: e.target.value })} style={{ ...inp, width: "100%" }} required minLength={2} maxLength={255} />
-            </label>
-            <label style={{ display: "block" }}>
-              <span className="gv-label">Logo URL</span>
-              <input value={editForm.logoUrl} onChange={(e) => onChange({ ...editForm, logoUrl: e.target.value })} placeholder="https://…" style={{ ...inp, width: "100%" }} />
-            </label>
-          </div>
-          {editError && <p style={{ margin: "10px 0 0", color: "var(--danger)", fontSize: 13 }}>{editError}</p>}
-          <div style={{ marginTop: 14, display: "flex", gap: 8 }}>
+      {/* Same grid in both modes — Name and Logo URL gain controls, the
+          server-owned rows (slug, plan, status, id) stay readable instead of
+          disappearing behind an Edit click. See `DetailRows`. */}
+      <DetailRows
+        editing={editMode}
+        rows={[
+          {
+            label: "Name",
+            value: tenant.name,
+            edit: (
+              <input className="gv-input" value={editForm.name} onChange={(e) => onChange({ ...editForm, name: e.target.value })} required minLength={2} maxLength={255} />
+            ),
+          },
+          {
+            label: "Logo URL",
+            value: tenant.logoUrl ? (
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, wordBreak: "break-all" }}>{tenant.logoUrl}</span>
+            ) : (
+              "—"
+            ),
+            edit: (
+              <input className="gv-input" value={editForm.logoUrl} onChange={(e) => onChange({ ...editForm, logoUrl: e.target.value })} placeholder="https://…" />
+            ),
+          },
+          { label: "Slug", value: <span style={{ fontFamily: "var(--font-mono)" }}>{tenant.slug}</span> },
+          { label: "Plan", value: tenant.plan.charAt(0).toUpperCase() + tenant.plan.slice(1) },
+          { label: "Status", value: <Badge tone={tenant.status === "active" ? "success" : "danger"}>{tenant.status}</Badge> },
+          {
+            label: "Tenant ID",
+            value: <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)" }}>{tenant.id}</span>,
+          },
+        ]}
+      />
+
+      {editMode && (
+        <div style={{ padding: 16, borderTop: "1px solid var(--border-default)" }}>
+          {editError && <p style={{ margin: "0 0 10px", color: "var(--danger)", fontSize: 13 }}>{editError}</p>}
+          <div style={{ display: "flex", gap: 8 }}>
             <button onClick={onSave} disabled={editLoading} style={{ ...btnP, opacity: editLoading ? 0.6 : 1 }}>
               {editLoading ? "Saving…" : "Save"}
             </button>

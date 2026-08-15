@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import { api } from "@/lib/api";
 import { invalidateSession } from "@/lib/sessionStore";
 import { TENANT_ROOT_DOMAIN } from "@/lib/domain";
-import { Avatar } from "@/components/ui";
 import { NotificationBell } from "@/components/NotificationBell";
 import { AppSidebar, type AppNavKey } from "./AppSidebar";
 import type { TenantRole } from "@/lib/useTenantSession";
@@ -77,12 +76,10 @@ export function TeacherShell({
     router.push("/login");
   }
 
-  const userName = user?.name ?? "";
-
   return (
     <div style={{ display: "flex", width: "100%", minHeight: "100vh", background: "var(--bg-page)" }}>
       {/* ── Sidebar (shared, identical everywhere) ───────────────────────── */}
-      <AppSidebar role={role} activeKey={active} onLogout={handleLogout} />
+      <AppSidebar role={role} activeKey={active} user={user} onLogout={handleLogout} />
 
       {/* ── Main column ─────────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -107,13 +104,10 @@ export function TeacherShell({
               <span>Join a coaching</span>
             </Link>
           )}
+          {/* No avatar and no name here on purpose. The identity block is pinned
+              to the bottom of the sidebar, in one place; this bar answers "which
+              coaching am I in?" and nothing else. */}
           <NotificationBell />
-          {userName && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 4 }}>
-              <Avatar name={userName} size={28} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-heading)" }}>{userName}</span>
-            </div>
-          )}
         </header>
 
         {headerless ? (

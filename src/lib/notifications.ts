@@ -64,16 +64,17 @@ export const notifApi = {
   archive: (id: string) =>
     api.delete<{ ok: true }>(notifPath(`/${id}`)),
 
-  // ── Preferences (tenant-scoped only) ──────────────────────────────────────
+  // ── Preferences ───────────────────────────────────────────────────────────
+  // Goes through notifPath like everything else. These used to be pinned to the
+  // /tenant path, which 403'd for a student who had not joined a coaching — and
+  // the Settings screen showed every switch ON while silently failing to save.
   getPreferences: () =>
-    api.get<{ preferences: NotificationPreference[] }>(
-      "/tenant/notifications/preferences"
-    ),
+    api.get<{ preferences: NotificationPreference[] }>(notifPath("/preferences")),
 
   // One toggle per type: "on" delivers email/SMS per the type's config, "off"
   // mutes both outbound channels. In-app is always kept on server-side.
   setPreference: (type: NotificationType, enabled: boolean) =>
-    api.patch<{ ok: true }>(`/tenant/notifications/preferences/${type}`, {
+    api.patch<{ ok: true }>(notifPath(`/preferences/${type}`), {
       emailEnabled: enabled,
       smsEnabled: enabled,
     }),

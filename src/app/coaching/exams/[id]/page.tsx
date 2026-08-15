@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { useTenantSession } from "@/lib/useTenantSession";
 import { useUrlState } from "@/lib/useUrlState";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
-import { Button, Badge, DataTable, Tabs, Icon, Modal } from "@/components/ui";
+import { Button, Badge, DataTable, Tabs, Icon, Modal, DetailRows } from "@/components/ui";
 import type { Column, BadgeTone } from "@/components/ui";
 import { StatusBadge, StatusTimeline, ExamReportsPanel } from "@/components/exam";
 import type { ExamStatusHistoryRow } from "@/components/exam";
@@ -179,11 +179,6 @@ const btnS: CSSProperties = {
 const cell: CSSProperties = {
   padding: "11px 16px", borderBottom: "1px solid var(--border-default)",
   fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-heading)", verticalAlign: "middle",
-};
-
-const lc: CSSProperties = {
-  ...cell, fontWeight: 600, whiteSpace: "nowrap", width: 140,
-  background: "var(--bg-section-alt)", color: "var(--text-body)",
 };
 
 const cardStyle: CSSProperties = {
@@ -1295,15 +1290,21 @@ function ExamDetailInner() {
   );
 
   // ── Exam info / edit card ──────────────────────────────────────────────────
-  const infoCard = !editMode ? (
+  //
+  // One card, one row order, in both modes. Edit used to replace this whole card
+  // with a differently-shaped form carrying a different field set — the stat
+  // strip vanished, Duration went from a big number to a table input, and Price
+  // and Subject appeared out of nowhere. See `DetailRows`.
+  //
+  // The split now follows a rule instead of an accident: the strip holds facts
+  // *computed from* the paper, which nobody edits and which therefore look the
+  // same either way; every stored setting is a row, and rows grow controls.
+  const infoCard = (
     <div style={cardStyle}>
       <div style={{ padding: "18px 20px", display: "flex", gap: 28, flexWrap: "wrap" }}>
         {[
           ["Questions", exam.questions.length],
           ["Total marks", exam.totalMarks],
-          ["Duration", `${exam.durationMins} min`],
-          ["Max attempts", exam.maxAttempts],
-          ["Visibility", exam.visibility.replace("_", " ")],
           ...(exam.qualityScore != null ? [["Quality", `${exam.qualityScore}%`] as [string, string | number]] : []),
         ].map(([l, v]) => (
           <div key={l as string}>
@@ -1312,91 +1313,101 @@ function ExamDetailInner() {
           </div>
         ))}
       </div>
-      {(exam.description || exam.instructions || exam.scheduledAt || exam.endsAt || exam.gradeLevel) && (
-        <table style={{ width: "100%", borderCollapse: "collapse", borderTop: "1px solid var(--border-light)" }}>
-          <tbody>
-            {exam.gradeLevel && <tr><td style={lc}>Grade</td><td style={cell}>{exam.gradeLevel}</td></tr>}
-            {exam.description && <tr><td style={lc}>Description</td><td style={{ ...cell, whiteSpace: "pre-wrap" }}>{exam.description}</td></tr>}
-            {exam.instructions && <tr><td style={lc}>Instructions</td><td style={{ ...cell, whiteSpace: "pre-wrap" }}>{exam.instructions}</td></tr>}
-            {exam.scheduledAt && <tr><td style={lc}>Opens at</td><td style={cell}>{new Date(exam.scheduledAt).toLocaleString()}</td></tr>}
-            {exam.endsAt && <tr><td style={lc}>Closes at</td><td style={cell}>{new Date(exam.endsAt).toLocaleString()}</td></tr>}
-          </tbody>
-        </table>
-      )}
-    </div>
-  ) : (
-    <div style={cardStyle}>
-      <div style={{ padding: 20 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <tbody>
-            {(["title", "durationMins", "maxAttempts", "gradeLevel", "price"] as const).map(field => (
-              <tr key={field}>
-                <td style={{ ...lc, background: "transparent" }}>
-                  {field === "durationMins" ? "Duration (mins)" : field === "maxAttempts" ? "Max attempts" : field === "gradeLevel" ? "Grade level" : field.charAt(0).toUpperCase() + field.slice(1)}
-                </td>
-                <td style={{ padding: "6px 0" }}>
-                  <input
-                    type={["durationMins", "maxAttempts"].includes(field) ? "number" : "text"}
-                    value={editForm[field]}
-                    onChange={e => setEditForm(f => ({ ...f, [field]: e.target.value }))}
-                    style={{ ...inp, width: "100%" }}
-                  />
-                </td>
-              </tr>
-            ))}
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Visibility</td>
-              <td style={{ padding: "6px 0" }}>
-                <select value={editForm.visibility} onChange={e => setEditForm(f => ({ ...f, visibility: e.target.value as Exam["visibility"] }))} style={{ ...inp, width: "100%" }}>
+
+      <div style={{ borderTop: "1px solid var(--border-light)" }}>
+        <DetailRows
+          editing={editMode}
+          labelWidth={170}
+          rows={[
+            {
+              label: "Title",
+              value: exam.title,
+              edit: <input className="gv-input" value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} />,
+            },
+            {
+              label: "Duration",
+              value: `${exam.durationMins} min`,
+              edit: <input className="gv-input" type="number" value={editForm.durationMins} onChange={e => setEditForm(f => ({ ...f, durationMins: e.target.value }))} />,
+              help: editMode ? "Minutes." : undefined,
+            },
+            {
+              label: "Max attempts",
+              value: exam.maxAttempts,
+              edit: <input className="gv-input" type="number" value={editForm.maxAttempts} onChange={e => setEditForm(f => ({ ...f, maxAttempts: e.target.value }))} />,
+            },
+            {
+              label: "Visibility",
+              value: exam.visibility.replace("_", " "),
+              edit: (
+                <select className="gv-select" value={editForm.visibility} onChange={e => setEditForm(f => ({ ...f, visibility: e.target.value as Exam["visibility"] }))}>
                   <option value="private">Private</option>
                   <option value="public_free">Public Free</option>
                   <option value="public_paid">Public Paid</option>
                 </select>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Subject</td>
-              <td style={{ padding: "6px 0" }}>
-                <select value={editForm.subjectId} onChange={e => setEditForm(f => ({ ...f, subjectId: e.target.value }))} style={{ ...inp, width: "100%" }}>
+              ),
+            },
+            {
+              label: "Subject",
+              value: subjects.find(s => s.id === exam.subjectId)?.name ?? "—",
+              edit: (
+                <select className="gv-select" value={editForm.subjectId} onChange={e => setEditForm(f => ({ ...f, subjectId: e.target.value }))}>
                   <option value="">— None —</option>
                   {subjects.map(s => (
                     <option key={s.id} value={s.id}>{s.name}{s.gradeLevel ? ` (Grade ${s.gradeLevel})` : ""}</option>
                   ))}
                 </select>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Description</td>
-              <td style={{ padding: "6px 0" }}>
-                <textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} rows={2} style={{ ...inp, width: "100%", resize: "vertical" }} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Instructions</td>
-              <td style={{ padding: "6px 0" }}>
-                <textarea value={editForm.instructions} onChange={e => setEditForm(f => ({ ...f, instructions: e.target.value }))} rows={3} style={{ ...inp, width: "100%", resize: "vertical" }} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Opens at</td>
-              <td style={{ padding: "6px 0" }}>
-                <input type="datetime-local" value={editForm.scheduledAt} onChange={e => setEditForm(f => ({ ...f, scheduledAt: e.target.value }))} style={inp} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Closes at</td>
-              <td style={{ padding: "6px 0" }}>
-                <input type="datetime-local" value={editForm.endsAt} onChange={e => setEditForm(f => ({ ...f, endsAt: e.target.value }))} style={inp} />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        {editErr && <p style={{ margin: "10px 0 0", color: "var(--danger)", fontSize: 13 }}>{editErr}</p>}
-        <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
-          <Button variant="app" disabled={editLoading} onClick={handleEditSave}>{editLoading ? "Saving…" : "Save changes"}</Button>
-          <Button variant="ghost" onClick={() => { setEditMode(false); setEditErr(""); }}>Cancel</Button>
-        </div>
+              ),
+            },
+            {
+              label: "Grade level",
+              value: exam.gradeLevel ?? "—",
+              hidden: !exam.gradeLevel,
+              edit: <input className="gv-input" value={editForm.gradeLevel} onChange={e => setEditForm(f => ({ ...f, gradeLevel: e.target.value }))} />,
+            },
+            {
+              label: "Price",
+              value: exam.price ?? "—",
+              hidden: !exam.price,
+              edit: <input className="gv-input" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} />,
+              help: editMode ? "Only applies when visibility is Public Paid." : undefined,
+            },
+            {
+              label: "Description",
+              value: <span style={{ whiteSpace: "pre-wrap" }}>{exam.description}</span>,
+              hidden: !exam.description,
+              edit: <textarea className="gv-textarea" rows={2} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />,
+            },
+            {
+              label: "Instructions",
+              value: <span style={{ whiteSpace: "pre-wrap" }}>{exam.instructions}</span>,
+              hidden: !exam.instructions,
+              edit: <textarea className="gv-textarea" rows={3} value={editForm.instructions} onChange={e => setEditForm(f => ({ ...f, instructions: e.target.value }))} />,
+            },
+            {
+              label: "Opens at",
+              value: exam.scheduledAt ? new Date(exam.scheduledAt).toLocaleString() : "—",
+              hidden: !exam.scheduledAt,
+              edit: <input className="gv-input" type="datetime-local" value={editForm.scheduledAt} onChange={e => setEditForm(f => ({ ...f, scheduledAt: e.target.value }))} />,
+            },
+            {
+              label: "Closes at",
+              value: exam.endsAt ? new Date(exam.endsAt).toLocaleString() : "—",
+              hidden: !exam.endsAt,
+              edit: <input className="gv-input" type="datetime-local" value={editForm.endsAt} onChange={e => setEditForm(f => ({ ...f, endsAt: e.target.value }))} />,
+            },
+          ]}
+        />
       </div>
+
+      {editMode && (
+        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border-default)" }}>
+          {editErr && <p style={{ margin: "0 0 10px", color: "var(--danger)", fontSize: 13 }}>{editErr}</p>}
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button variant="app" disabled={editLoading} onClick={handleEditSave}>{editLoading ? "Saving…" : "Save changes"}</Button>
+            <Button variant="ghost" onClick={() => { setEditMode(false); setEditErr(""); }}>Cancel</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 

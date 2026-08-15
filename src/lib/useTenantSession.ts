@@ -9,6 +9,7 @@ import {
   subscribeToSession,
 } from "@/lib/sessionStore";
 import { resolveDisplayRole } from "@/components/dashboard/appNav";
+import { NO_BILLING, type Entitlements } from "@/lib/entitlements";
 
 /**
  * The role a user holds **within one coaching**. Read from the `memberships`
@@ -71,6 +72,16 @@ export interface TenantSession<T extends TenantBase> {
   tenant: T | null;
   /** The caller's role in `tenant`. Null while loading or when there is none. */
   role: TenantRole | null;
+  /**
+   * What this coaching may do, resolved server-side — plan limits, feature
+   * gates, and whether billing is live at all. Never null: falls back to
+   * `NO_BILLING` while loading, for a user with no coaching, and against an API
+   * old enough not to send it.
+   *
+   * Display only. Gate chrome on it; never treat it as authorisation, because
+   * the API re-checks every value independently.
+   */
+  entitlements: Entitlements;
   /**
    * The role the **chrome** (sidebar, badges) should render for — the single
    * answer to "which navigation does this person get?".
@@ -149,6 +160,7 @@ export function useTenantSession<T extends TenantBase = TenantBase>(
     user: null,
     tenant: null,
     role: null,
+    entitlements: NO_BILLING,
     noTenant: false,
     accountRole: null,
     signupIntent: null,
@@ -189,19 +201,22 @@ export function useTenantSession<T extends TenantBase = TenantBase>(
           return;
         }
         setState({
-          loading: false, user, tenant: null, role: null, noTenant: true, accountRole, signupIntent,
+          loading: false, user, tenant: null, role: null, entitlements: NO_BILLING,
+          noTenant: true, accountRole, signupIntent,
         });
         return;
       }
 
-      const { tenant, membershipRole } = tenantResult.value;
+      const { tenant, membershipRole, entitlements } = tenantResult.value;
       if (allowKey !== "" && !allowKey.split(",").includes(membershipRole)) {
         router.push(denyRedirect);
         return;
       }
 
       setState({
-        loading: false, user, tenant, role: membershipRole, noTenant: false, accountRole, signupIntent,
+        loading: false, user, tenant, role: membershipRole,
+        entitlements: entitlements ?? NO_BILLING,
+        noTenant: false, accountRole, signupIntent,
       });
     });
 

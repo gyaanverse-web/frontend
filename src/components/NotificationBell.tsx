@@ -637,7 +637,7 @@ export function NotificationBell() {
             }}
           >
             <a
-              href="/settings"
+              href="/account?tab=notifications"
               style={{
                 display: "inline-flex",
                 alignItems: "center",

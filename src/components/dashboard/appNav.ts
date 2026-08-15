@@ -1,4 +1,5 @@
 import type { IconName } from "@/components/ui";
+import { NO_BILLING, type Entitlements } from "@/lib/entitlements";
 
 /**
  * Pure, framework-free source of truth for the app's left-navigation.
@@ -89,7 +90,14 @@ export function belongsToStudentArea(
   return signupIntent !== "coaching_owner";
 }
 
-/** Build the role-aware nav. The list is identical on every page for a given role. */
+/**
+ * Build the role-aware nav. The list is identical on every page for a given role.
+ *
+ * Takes no entitlements any more: nothing in the sidebar is gated on billing
+ * since "Plan & Billing" stopped being a nav row and became a tab inside
+ * Settings. That rule did not disappear — it moved to `buildSettingsTabs` below,
+ * which is where it is now tested.
+ */
 export function buildAppNav(role: string): NavEntry[] {
   const isOwner = role === "coaching_owner";
   const canMembers = isOwner || role === "teacher";
@@ -104,8 +112,6 @@ export function buildAppNav(role: string): NavEntry[] {
       { key: "results", label: "My Results", icon: "chart-column", href: "/student/results" },
       { key: "classes", label: "My Classes", icon: "graduation-cap", href: "/student/classes" },
       { key: "marketplace", label: "Marketplace", icon: "store", href: "/student/marketplace" },
-      { section: "Account" },
-      { key: "account", label: "Account", icon: "settings", href: "/account" },
     ];
   }
 
@@ -132,13 +138,78 @@ export function buildAppNav(role: string): NavEntry[] {
 
   if (isOwner) {
     // Owner-only: teachers roster + workload lives at its own route.
-    nav.push({ key: "teachers", label: "Teachers", icon: "users", href: "/coaching/teachers" });
+    nav.push({ key: "teachers", label: "Teachers", icon: "user-check", href: "/coaching/teachers" });
     nav.push({ key: "invites", label: "Invites & Codes", icon: "plus", href: dash("Invites / Join Codes") });
-    nav.push({ key: "plan", label: "Plan & Billing", icon: "wallet", href: dash("Plan & Billing") });
     nav.push({ section: "Institute" });
-    nav.push({ key: "settings", label: "Settings", icon: "settings", href: dash("Settings") });
-    nav.push({ key: "danger", label: "Danger Zone", icon: "bell", href: dash("Danger Zone") });
+    // `building`, not `settings` — this row is the INSTITUTE, and the gear
+    // belongs to the personal Account entry in the sidebar footer.
+    //
+    // ONE row, not three. "Plan & Billing" and "Danger Zone" used to sit beside
+    // it as their own destinations; both are now TABS inside this screen. Neither
+    // is a daily navigation target, and "delete my whole institute" one mis-click
+    // from "Settings" in the permanent menu is a hazard, not a convenience.
+    // Billing is still gated on `entitlements.billingEnabled` — the tab simply
+    // does not render while the platform billing switch is off — which is why
+    // this function no longer needs to branch on it here.
+    nav.push({ key: "settings", label: "Settings", icon: "building", href: dash("Settings") });
   }
 
   return nav;
+}
+
+/**
+ * Everything below the divider at the bottom of the sidebar.
+ *
+ * Not part of `buildAppNav` because it is not navigation between areas of the
+ * institute — it is the "this is ME" block that every SaaS shell pins to the
+ * bottom: who is signed in, their account, and the way out. `AppSidebar` renders
+ * it after a spacer, identical for every role.
+ *
+ * Kept here rather than inline in the component for the same reason as the rest
+ * of this module: it is a plain data structure a Node test can assert on.
+ */
+export const ACCOUNT_ENTRY = {
+  key: "account",
+  label: "Account",
+  icon: "settings",
+  href: "/account",
+} as const satisfies Extract<NavEntry, { key: AppNavKey }>;
+
+/** The tabs on `?screen=Settings`, in render order. */
+export type SettingsTabKey = "general" | "billing" | "danger";
+
+export const SETTINGS_TAB_LABEL: Record<SettingsTabKey, string> = {
+  general: "General",
+  billing: "Billing",
+  danger: "Danger Zone",
+};
+
+/**
+ * Which tabs the institute Settings screen shows.
+ *
+ * Two independent conditions gate "billing", both required, and this is the only
+ * place either is expressed:
+ *
+ *  - **Owner only.** Plan pricing is the owner's business; a teacher cannot even
+ *    open this screen (`OWNER_ONLY_SCREENS` on the dashboard, and a 403 behind
+ *    every call the tab would make).
+ *  - **Billing actually live.** Gated on `billingEnabled` rather than on the plan
+ *    name, because while the platform switch is off every coaching resolves to an
+ *    unmetered plan — so the plan name tells you nothing about whether the
+ *    product exists yet. With it off the tab is absent, not disabled: every
+ *    request behind it 404s, so it would render as a broken screen rather than an
+ *    upsell.
+ *
+ * `entitlements` is optional so this stays callable from a plain Node test and
+ * from a caller whose session has not resolved; omitting it gives the
+ * billing-off answer, which is what the server says today.
+ */
+export function buildSettingsTabs(
+  role: string,
+  entitlements: Entitlements = NO_BILLING,
+): SettingsTabKey[] {
+  if (role !== "coaching_owner") return [];
+  return entitlements.billingEnabled
+    ? ["general", "billing", "danger"]
+    : ["general", "danger"];
 }
