@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { buildTenantUrl } from "@/lib/tenantUrl";
-import { TENANT_ROOT_DOMAIN } from "@/lib/domain";
+import { TENANT_ROOT_DOMAIN, RESERVED_SUBDOMAINS, SLUG_PATTERN } from "@/lib/domain";
 import { Logo, Button } from "@/components/ui";
 
 const PAGE_BG =
@@ -27,6 +27,10 @@ function CreateCoachingContent() {
   const [error, setError]     = useState("");
   const [loading, setLoading] = useState(false);
 
+  // Surfaced inline so the user sees it while typing; the backend re-checks and
+  // is the authoritative guard.
+  const slugReserved = RESERVED_SUBDOMAINS.has(slug);
+
   function handleNameChange(value: string) {
     setName(value);
     setSlug(toSlug(value));
@@ -35,6 +39,10 @@ function CreateCoachingContent() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    if (slugReserved) {
+      setError(`"${slug}" is reserved by the platform. Pick a different URL slug.`);
+      return;
+    }
     setLoading(true);
     try {
       await api.post("/tenants", { name, slug });
@@ -84,13 +92,21 @@ function CreateCoachingContent() {
             <span className="gv-label">URL slug</span>
             <input
               className="gv-input" type="text" required minLength={3} maxLength={63}
-              pattern="^[a-z0-9-]+$" style={{ fontFamily: "var(--font-mono)" }}
+              pattern={SLUG_PATTERN} style={{ fontFamily: "var(--font-mono)" }}
               placeholder="sharma-classes"
               value={slug} onChange={(e) => setSlug(e.target.value)}
             />
             <div className="gv-help">
-              Lowercase letters, numbers, hyphens only. Becomes{" "}
-              <strong style={{ color: "var(--text-body)" }}>{slug || "yourname"}.{TENANT_ROOT_DOMAIN}</strong>.
+              {slugReserved ? (
+                <span style={{ color: "var(--danger-600, #c02626)" }}>
+                  <strong>{slug}</strong> is reserved by the platform — pick another name.
+                </span>
+              ) : (
+                <>
+                  Lowercase letters, numbers, hyphens only. Becomes{" "}
+                  <strong style={{ color: "var(--text-body)" }}>{slug || "yourname"}.{TENANT_ROOT_DOMAIN}</strong>.
+                </>
+              )}
             </div>
           </label>
 

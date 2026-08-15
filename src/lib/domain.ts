@@ -32,18 +32,55 @@ export const APP_HOST = process.env.NEXT_PUBLIC_APP_HOST ?? "";
  */
 export const TENANT_ROOT_DOMAIN = APP_ROOT_DOMAIN || "gyanverse.com";
 
-// Subdomains that are NOT tenants. Mirrors the backend's RESERVED_SUBDOMAINS in
-// src/middleware/tenant.middleware.ts.
+// Subdomains that are NOT tenants. MIRROR of the backend's RESERVED_SLUGS in
+// `backend/src/config/reserved-slugs.ts`, which is the source of truth and the
+// list that actually blocks registration — keep the two in step. A name here
+// that is missing there could be registered and then never resolve.
 export const RESERVED_SUBDOMAINS = new Set([
-  "www",
-  "api",
-  "app",
-  "admin",
-  "auth",
-  "static",
-  "cdn",
-  "staging",
+  // Platform hosts and environments.
+  "app", "api", "www", "admin", "ops", "internal", "auth", "login", "logout",
+  "signin", "signup", "register", "account", "accounts", "dashboard", "portal",
+  "staging", "preview", "production", "prod", "dev", "development", "test",
+  "testing", "demo", "sandbox", "local", "localhost", "beta", "alpha",
+
+  // Infrastructure and asset hosts.
+  "cdn", "static", "assets", "media", "img", "images", "files", "uploads",
+  "download", "downloads", "storage", "db", "database", "redis", "queue",
+  "queues", "worker", "cache", "proxy", "gateway", "router",
+
+  // Mail and DNS.
+  "mail", "email", "smtp", "imap", "pop", "pop3", "mx", "webmail", "send",
+  "bounce", "bounces", "noreply", "no-reply", "postmaster", "hostmaster",
+  "abuse", "ns", "ns1", "ns2", "ns3", "ns4", "dns", "ftp", "sftp", "vpn",
+
+  // Phishing-adjacent names.
+  "secure", "security", "ssl", "tls", "verify", "verification", "validate",
+  "confirm", "update", "billing", "payment", "payments", "pay", "checkout",
+  "invoice", "invoices", "refund", "wallet", "bank", "my", "me", "user",
+  "users", "profile", "password", "reset", "token", "oauth", "sso", "saml",
+
+  // Marketing and content surfaces.
+  "blog", "news", "help", "support", "docs", "doc", "documentation", "status",
+  "about", "contact", "careers", "jobs", "legal", "privacy", "terms", "press",
+  "partners", "pricing", "plans", "store", "shop", "community", "forum",
+  "events", "webinar", "academy", "learn", "courses",
+
+  // Observability and tooling.
+  "metrics", "monitor", "monitoring", "health", "healthz", "grafana", "kibana",
+  "sentry", "logs", "log", "trace", "debug", "ci", "cd", "build", "git",
+  "jenkins", "runner", "webhook", "webhooks", "callback", "callbacks",
+
+  // Generic/system words.
+  "root", "system", "sys", "config", "settings", "setup", "onboarding", "new",
+  "edit", "create", "delete", "remove", "null", "undefined", "none", "true",
+  "false", "example", "sample", "default", "public", "private", "index",
+
+  // Brand names.
+  "gyaanverse", "gyanverse", "gyaan", "gyan",
 ]);
+
+/** Hostname-label shape for a tenant slug. Mirrors backend `SLUG_PATTERN`. */
+export const SLUG_PATTERN = "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$";
 
 /**
  * Core resolver: given a hostname, return the tenant slug it represents, or
