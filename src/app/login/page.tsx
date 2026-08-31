@@ -10,6 +10,7 @@ import { Logo, Button } from "@/components/ui";
 
 type Method = "email" | "phone";
 type PhoneStep = "number" | "otp";
+type AudienceRole = "student" | "teacher";
 
 const PAGE_BG =
   "radial-gradient(ellipse 70% 50% at 50% 0%, #eef0fc 0%, var(--paper-50) 60%)";
@@ -21,6 +22,7 @@ function LoginContent() {
   const params = useSearchParams();
 
   const [method, setMethod] = useState<Method>("email");
+  const [audience, setAudience] = useState<AudienceRole>("student");
 
   // Email login
   const [emailForm, setEmailForm] = useState({ email: "", password: "" });
@@ -152,9 +154,38 @@ function LoginContent() {
         }}
       >
         <h2 style={{ fontSize: 28, marginBottom: 6 }}>Sign in.</h2>
-        <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)", marginBottom: 28 }}>
-          Welcome back to Gyaanverse.
+        <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)", marginBottom: 20 }}>
+          {audience === "student" ? "Welcome back to Gyaanverse." : "Welcome back, teacher."}
         </p>
+
+        {/* Audience tabs — pill switcher */}
+        <div style={{ display: "flex", background: "var(--paper-100)", borderRadius: "var(--radius-pill)", padding: 4, marginBottom: 16, gap: 4 }}>
+          {(["student", "teacher"] as const).map((r) => {
+            const active = audience === r;
+            return (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setAudience(r)}
+                style={{
+                  flex: 1,
+                  padding: "9px 0",
+                  border: "none",
+                  borderRadius: "var(--radius-pill)",
+                  background: active ? "#fff" : "transparent",
+                  boxShadow: active ? "var(--shadow-sm)" : "none",
+                  fontFamily: "var(--font-body)",
+                  fontSize: 14,
+                  fontWeight: active ? 600 : 400,
+                  color: active ? "var(--text-heading)" : "var(--text-muted)",
+                  cursor: "pointer",
+                }}
+              >
+                {r === "student" ? "Student" : "Teacher"}
+              </button>
+            );
+          })}
+        </div>
 
         {/* Method tabs — pill switcher */}
         <div style={{ display: "flex", background: "var(--paper-100)", borderRadius: "var(--radius-pill)", padding: 4, marginBottom: 24, gap: 4 }}>
@@ -301,12 +332,18 @@ function LoginContent() {
           <span style={{ fontSize: 12, color: "var(--text-muted)" }}>or</span>
           <span style={{ flex: 1, height: 1, background: "var(--border-light)" }} />
         </div>
-        <p style={{ textAlign: "center", fontSize: 14, color: "var(--text-body)", margin: 0 }}>
-          New to Gyaanverse?{" "}
-          <Link href="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>
-            Create account
-          </Link>
-        </p>
+        {audience === "student" ? (
+          <p style={{ textAlign: "center", fontSize: 14, color: "var(--text-body)", margin: 0 }}>
+            New to Gyaanverse?{" "}
+            <Link href="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>
+              Create account
+            </Link>
+          </p>
+        ) : (
+          <p style={{ textAlign: "center", fontSize: 13, color: "var(--text-muted)", margin: 0, lineHeight: 1.5 }}>
+            Teachers join through an invitation link from their coaching institute — check your email, or ask your coaching owner to send one.
+          </p>
+        )}
       </div>
     </div>
   );
