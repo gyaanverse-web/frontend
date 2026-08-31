@@ -10,6 +10,7 @@ import { TeacherShell } from "@/components/dashboard/TeacherShell";
 import { Button, Badge, DataTable, Tabs, Icon, Modal, DetailRows } from "@/components/ui";
 import type { Column, BadgeTone } from "@/components/ui";
 import { StatusBadge, StatusTimeline, ExamReportsPanel } from "@/components/exam";
+import { MathText } from "@/components/Math";
 import type { ExamStatusHistoryRow } from "@/components/exam";
 import {
   type ExamStatus,
@@ -1634,7 +1635,7 @@ function ExamDetailInner() {
                       <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{q.marks} marks{q.negativeMarks > 0 ? ` · −${q.negativeMarks}` : ""}</span>
                       {q.explanation && <span style={{ fontSize: 12, color: "var(--success)", display: "inline-flex", alignItems: "center", gap: 3 }}><Icon name="check-circle" size={12} /> Explanation</span>}
                     </div>
-                    <p style={{ margin: 0, fontSize: 14, lineHeight: 1.45, color: "var(--text-heading)" }}>{q.body}</p>
+                    <MathText text={q.body} style={{ display: "block", fontSize: 14, lineHeight: 1.45, color: "var(--text-heading)" }} />
                   </div>
                   {editable && (
                     <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>

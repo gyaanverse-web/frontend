@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useTenantSession } from "@/lib/useTenantSession";
 import { QuestionEditor, parseToEditor, buildPayloadAnswer, emptyEditor, Field, type EditorState } from "@/components/QuestionEditor";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
+import { MathText } from "@/components/Math";
 import { Button, Badge, Input, Icon } from "@/components/ui";
 import type { BadgeTone, IconName } from "@/components/ui";
 import { examStatusLabel, type ExamStatus } from "@/lib/examStatus";
@@ -1469,7 +1470,7 @@ export default function TestEnginePage() {
                         {q.difficulty && <Badge tone={DIFF_TONE[q.difficulty] ?? "neutral"} style={{ fontSize: 10 }}>{q.difficulty}</Badge>}
                         {q.draftStatus && <Badge tone={q.draftStatus === "kept" ? "success" : q.draftStatus === "discarded" ? "danger" : "warning"} style={{ fontSize: 10 }}>{q.draftStatus}</Badge>}
                       </div>
-                      <p style={{ fontSize: 13.5, color: "var(--text-heading)", margin: 0, lineHeight: 1.5 }}>{q.body}</p>
+                      <MathText text={q.body} style={{ display: "block", fontSize: 13.5, color: "var(--text-heading)", lineHeight: 1.5 }} />
                     </div>
                     {isDraft && (
                       discarded ? (

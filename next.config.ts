@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { execSync } from "node:child_process";
+import path from "node:path";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Build stamp.
@@ -32,6 +33,14 @@ const commitRef =
   process.env.VERCEL_GIT_COMMIT_REF || fromGit("rev-parse --abbrev-ref HEAD");
 
 const nextConfig: NextConfig = {
+  // Pin the workspace root to this directory. Without this, Turbopack scans
+  // upward for lockfiles and can lock onto an unrelated one sitting in a
+  // parent folder (e.g. sibling scratch projects), which throws off HMR/file
+  // watching in dev.
+  turbopack: {
+    root: path.join(__dirname),
+  },
+
   // Allow the Next.js dev server (HMR, dev assets) to serve requests from
   // every *.lvh.me host so tenant subdomains work in development.
   allowedDevOrigins: ["app.lvh.me", "*.lvh.me"],

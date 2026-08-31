@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { buildTenantUrl } from "@/lib/tenantUrl";
 import type { CoachingJoinCode, Tenant } from "../types";
 import { fmtLimit } from "../types";
 import { sh, cell, inp, btnP, btnS, btnD } from "../styles";
@@ -71,7 +72,7 @@ export function JoinCodesSection({ tenant }: Props) {
   }
 
   async function copyLink(jc: CoachingJoinCode) {
-    const url = `${window.location.origin}/join/${jc.code}`;
+    const url = buildTenantUrl(tenant.slug, `/join/${jc.code}`);
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);

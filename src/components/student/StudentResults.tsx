@@ -117,7 +117,11 @@ function ObjectiveRow({ q, a }: { q: ExamQuestion; a: AnswerRow | undefined }) {
       <Icon name="check-circle" size={18} style={{ color: correct ? "var(--success)" : correct === false ? "var(--danger)" : "var(--text-muted)", flex: "none" }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 14, color: "var(--text-heading)" }}>Q{q.order}. <MathText text={q.body} /></div>
-        <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Your answer: {studentAnswerText(q.type, a?.answer ?? null, q.payload)}</div>
+        <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>
+          {/* The option the student picked carries the same maths as the question
+              body, so it is rendered the same way rather than as raw source. */}
+          Your answer: <MathText text={studentAnswerText(q.type, a?.answer ?? null, q.payload)} />
+        </div>
       </div>
       <Badge tone={correct ? "success" : correct === false ? "danger" : "neutral"}>
         {awarded !== null && awarded !== undefined ? (awarded >= 0 ? `+${awarded}` : awarded) : "—"} / {q.marks}
@@ -338,7 +342,7 @@ export function StudentResults({ examId, sessionId }: { examId: string; sessionI
               key={q.id}
               style={{ marginBottom: 16 }}
               student={`Q${q.order}`}
-              exam={q.body}
+              exam={<MathText text={q.body} />}
               score={ev ? ev.score : "…"}
               outOf={ev ? ev.maxScore : q.marks}
               status={status}

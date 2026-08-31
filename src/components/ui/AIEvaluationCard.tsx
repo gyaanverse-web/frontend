@@ -7,8 +7,9 @@ import { FeedbackCallout } from "./FeedbackCallout";
 export type AIEvaluationStatus = "evaluated" | "evaluating" | "pending";
 
 export interface AIEvaluationCardProps extends HTMLAttributes<HTMLDivElement> {
-  student?: string;
-  exam?: string;
+  student?: ReactNode;
+  /** Takes a node so callers can pass a KaTeX-rendered question body, not just a title. */
+  exam?: ReactNode;
   score?: number | string;
   outOf?: number;
   status?: AIEvaluationStatus;

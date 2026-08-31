@@ -636,7 +636,7 @@ function AiFeedbackBlock({ raw }: { raw: string }) {
   if (parsed === null) {
     return (
       <FeedbackCallout kind="mistake" title="AI feedback" style={{ marginTop: 12 }}>
-        {raw}
+        <MathText text={raw} />
       </FeedbackCallout>
     );
   }

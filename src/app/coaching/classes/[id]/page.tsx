@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api } from "@/lib/api";
+import { buildTenantUrl } from "@/lib/tenantUrl";
 import { useTenantSession } from "@/lib/useTenantSession";
 import { useUrlState } from "@/lib/useUrlState";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
@@ -238,7 +239,7 @@ function ClassDetailInner() {
     // Class codes redeem at /join/class/:code (join_codes table), NOT the
     // coaching /join/:code page (coaching_join_codes) — that only knows about
     // institute-wide codes and would report "Join code not found".
-    const url = `${window.location.origin}/join/class/${jc.code}`;
+    const url = tenant ? buildTenantUrl(tenant.slug, `/join/class/${jc.code}`) : `${window.location.origin}/join/class/${jc.code}`;
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
