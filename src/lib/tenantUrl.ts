@@ -18,6 +18,8 @@ type Router = ReturnType<typeof useRouter>;
  *   - has tenant + we're NOT on it (app / root / other slug) → hard nav to <slug>.<root>
  *   - no tenant (404 from /tenants/me) + on tenant subdomain  → hard nav to app host
  *   - no tenant (404 from /tenants/me) + already on app/root  → router.replace(path)
+ *   - member elsewhere, not here (403 from /tenants/me)       → app host, which
+ *     resolves their own coaching and sends them there (see `leaveForeignCoaching`)
  *   - fetch fails for another reason                          → router.replace(path) (best effort)
  *
  * In the no-tenant case `path` is `/create-coaching` for someone who signed up
@@ -46,6 +48,10 @@ export async function postAuthRedirect(
     }
     window.location.href = buildTenantUrl(slug, path);
   } catch (err) {
+    if (isForeignCoaching(err)) {
+      leaveForeignCoaching(path);
+      return;
+    }
     if (err instanceof ApiError && err.status === 404) {
       // User has no tenant yet — must land on the app host so they can create
       // or join a coaching. If they signed in on a tenant subdomain (e.g.
@@ -68,6 +74,29 @@ export async function postAuthRedirect(
     // Network / 5xx — best effort, still navigate locally
     router.replace(path);
   }
+}
+
+/**
+ * True when `/tenants/me` refused because this subdomain is a coaching the user
+ * does not belong to — while they do belong to another one.
+ *
+ * Only on a tenant subdomain: the app host has no coaching to be refused, so a
+ * 403 there is not this case, and redirecting on it could loop.
+ */
+export function isForeignCoaching(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403 && currentTenantSlug() !== null;
+}
+
+/**
+ * Leave a coaching's subdomain for the user's own coaching, keeping `path`.
+ *
+ * Goes via the app host's `/login`: there `/tenants/me` has no subdomain to
+ * scope to and answers with the user's own coaching, and the login page — for
+ * someone already signed in — runs `postAuthRedirect`, which hops to that
+ * subdomain with `?next`.
+ */
+export function leaveForeignCoaching(path: string): void {
+  window.location.href = appHostUrl(`/login?next=${encodeURIComponent(path)}`);
 }
 
 /**

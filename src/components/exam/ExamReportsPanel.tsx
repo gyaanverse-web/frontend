@@ -139,6 +139,13 @@ const STEP_TONE: Record<EvaluatedStep["step_status"], string> = {
   unknown: "var(--text-muted)",
 };
 
+const STEP_LABEL: Record<EvaluatedStep["step_status"], string> = {
+  right: "Correct",
+  wrong: "Incorrect",
+  incomplete: "Incomplete",
+  unknown: "Unclear",
+};
+
 function toneColor(tone: BadgeTone): string {
   if (tone === "success") return "var(--success)";
   if (tone === "warning") return "var(--warning)";
@@ -682,7 +689,7 @@ function AiFeedbackBlock({ raw }: { raw: string }) {
               />
               <MathText text={s.text} style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.55, color: "var(--text-body)" }} />
               <span style={{ ...muted, marginLeft: "auto", flex: "none", color: STEP_TONE[s.step_status] }}>
-                {s.step_status}
+                {STEP_LABEL[s.step_status]}
               </span>
             </li>
           ))}

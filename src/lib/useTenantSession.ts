@@ -10,6 +10,7 @@ import {
 } from "@/lib/sessionStore";
 import { resolveDisplayRole } from "@/components/dashboard/appNav";
 import { NO_BILLING, type Entitlements } from "@/lib/entitlements";
+import { isForeignCoaching, leaveForeignCoaching } from "@/lib/tenantUrl";
 
 /**
  * The role a user holds **within one coaching**. Read from the `memberships`
@@ -196,6 +197,15 @@ export function useTenantSession<T extends TenantBase = TenantBase>(
       const { role: accountRole = null, signupIntent = null, ...user } = sessionUser;
 
       if (tenantResult.status === "rejected") {
+        // On a coaching they don't belong to, while belonging to another: send
+        // them to their own, same page. Before the API scoped `/tenants/me` to
+        // the subdomain, this page would have rendered the other coaching's
+        // name and role over requests authorised against this one. Stays
+        // `loading` so nothing renders ahead of the navigation.
+        if (isForeignCoaching(tenantResult.reason)) {
+          leaveForeignCoaching(window.location.pathname + window.location.search);
+          return;
+        }
         if (requireTenant) {
           router.push("/coaching/dashboard");
           return;

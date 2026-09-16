@@ -128,8 +128,9 @@ type ExamSession = {
   attemptNumber: number;
   status: string;
   autoScore: number | null;
+  manualScore: number | null;
   totalMarks: number;
-  createdAt: string;
+  startedAt: string;
 };
 
 // `GET /tenant/exams/:id/evaluation-progress`. `pending` is exactly what the
@@ -1743,8 +1744,12 @@ function ExamDetailInner() {
       const tone: BadgeTone = s.status === "submitted" ? "success" : s.status === "expired" ? "danger" : "warning";
       return <Badge tone={tone}>{s.status}</Badge>;
     } },
-    { key: "score", label: "Score", width: 110, render: (s) => <span style={{ fontSize: 13 }}>{s.autoScore !== null ? `${s.autoScore} / ${s.totalMarks}` : "—"}</span> },
-    { key: "started", label: "Started", width: 120, render: (s) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{new Date(s.createdAt).toLocaleDateString()}</span> },
+    { key: "score", label: "Score", width: 110, render: (s) => {
+      if (s.autoScore === null && s.manualScore === null) return <span style={{ fontSize: 13 }}>—</span>;
+      const total = (s.autoScore ?? 0) + (s.manualScore ?? 0);
+      return <span style={{ fontSize: 13 }}>{total} / {s.totalMarks}</span>;
+    } },
+    { key: "started", label: "Started", width: 120, render: (s) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{new Date(s.startedAt).toLocaleDateString()}</span> },
   ];
 
   const sessionsPanel = (

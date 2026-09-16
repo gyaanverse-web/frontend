@@ -126,8 +126,10 @@ export function getSession(): Promise<SessionPayload> {
   );
 }
 
-/** The caller's coaching and their role in it. **Rejects with a 404 ApiError**
- *  when they belong to none — callers branch on that, so it is not an error. */
+/** The coaching this host is on and the caller's role in it (on the app host,
+ *  their oldest membership). **Rejects with a 404 ApiError** when they belong to
+ *  none, and a **403** on a coaching subdomain they don't belong to while
+ *  belonging to another — callers branch on both, so neither is an error. */
 export function getTenant<T extends TenantBase = TenantBase>(): Promise<TenantPayload<T>> {
   return cachedGet(TENANT_KEY, TENANT_TTL_MS, () =>
     api.get<TenantPayload<T>>("/tenants/me"),

@@ -239,7 +239,8 @@ function ClassDetailInner() {
     // Class codes redeem at /join/class/:code (join_codes table), NOT the
     // coaching /join/:code page (coaching_join_codes) — that only knows about
     // institute-wide codes and would report "Join code not found".
-    const url = tenant ? buildTenantUrl(tenant.slug, `/join/class/${jc.code}`) : `${window.location.origin}/join/class/${jc.code}`;
+    if (!tenant) return;
+    const url = buildTenantUrl(tenant.slug, `/join/class/${jc.code}`);
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
