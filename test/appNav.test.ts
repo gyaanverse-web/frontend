@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildAppNav, buildSettingsTabs, resolveDisplayRole, belongsToStudentArea,
-  ACCOUNT_ENTRY, type AppNavKey, type NavEntry,
+  landingPathForRole, ACCOUNT_ENTRY, type AppNavKey, type NavEntry,
 } from "@/components/dashboard/appNav";
 import { NO_BILLING, type Entitlements } from "@/lib/entitlements";
 
@@ -295,5 +295,19 @@ describe("belongsToStudentArea", () => {
       const navIsStudent = keys(display ?? "student").includes("home");
       expect(navIsStudent).toBe(inStudentArea);
     }
+  });
+});
+
+// The tenant switcher and the login-time chooser both hop straight to a named
+// coaching, so neither goes through /coaching/dashboard's own student bounce —
+// this is the function that has to get the destination right on its own.
+describe("landingPathForRole", () => {
+  it("sends a student membership to the student area", () => {
+    expect(landingPathForRole("student")).toBe("/student");
+  });
+
+  it("sends every staff membership to the coaching dashboard", () => {
+    expect(landingPathForRole("coaching_owner")).toBe("/coaching/dashboard");
+    expect(landingPathForRole("teacher")).toBe("/coaching/dashboard");
   });
 });

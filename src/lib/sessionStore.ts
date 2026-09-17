@@ -55,6 +55,13 @@ export interface TenantPayload<T extends TenantBase = TenantBase> {
    * callers fall back to `NO_BILLING`. Once both are out it is always present.
    */
   entitlements?: Entitlements;
+  /**
+   * Every coaching the signed-in user belongs to, oldest first — the data
+   * behind the coaching switcher. Always sent by the API regardless of which
+   * host answered; optional here only so a frontend deploy that lands ahead of
+   * the API still renders. See `useMemberships` in `useTenantSession.ts`.
+   */
+  memberships?: Array<{ tenant: TenantBase; membershipRole: TenantRole }>;
 }
 
 type Settled = { ok: true; value: unknown } | { ok: false; error: unknown };

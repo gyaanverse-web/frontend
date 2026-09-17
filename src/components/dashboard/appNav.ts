@@ -91,6 +91,18 @@ export function belongsToStudentArea(
 }
 
 /**
+ * Default landing path for a membership with this role — the same answer
+ * `belongsToStudentArea` gives once a membership role is known, expressed as a
+ * destination rather than a boolean. Used when switching straight to a
+ * specific coaching (the tenant switcher, the login-time chooser) so a
+ * student membership skips the `/coaching/dashboard` → `/student` bounce that
+ * page does for anyone reaching it as a student.
+ */
+export function landingPathForRole(role: string): string {
+  return role === "student" ? "/student" : "/coaching/dashboard";
+}
+
+/**
  * Build the role-aware nav. The list is identical on every page for a given role.
  *
  * Takes no entitlements any more: nothing in the sidebar is gated on billing

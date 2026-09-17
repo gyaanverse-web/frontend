@@ -49,7 +49,7 @@ function LoginContent() {
           setAuthChecking(false);
           return;
         }
-        void postAuthRedirect(router, { nextParam: params.get("next") });
+        void postAuthRedirect(router, { nextParam: params.get("next"), offerChooser: true });
       })
       .catch(() => setAuthChecking(false));
   }, []);
@@ -72,7 +72,7 @@ function LoginContent() {
     // the session and the coaching to decide where to send us, and against that
     // stale copy it would route a freshly signed-in user as an anonymous one.
     invalidateSession();
-    void postAuthRedirect(router, { nextParam: params.get("next") });
+    void postAuthRedirect(router, { nextParam: params.get("next"), offerChooser: true });
   }
 
   function switchMethod(m: Method) {
