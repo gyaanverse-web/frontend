@@ -2,9 +2,10 @@ import { slugFromHost, hasTenantContext } from "./domain";
 
 const FALLBACK_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-// SSR / no-subdomain fallback. In dev, prefer hitting the app via
-// http://<slug>.localhost:3000 — the slug is then auto-derived in the browser.
-const FALLBACK_TENANT_SLUG = process.env.NEXT_PUBLIC_TENANT_SLUG ?? "dev";
+// Explicit override for tooling that has no browser hostname to derive a slug
+// from (curl, scripts). Unset in the browser — there, no tenant means no
+// header at all, not a guaranteed-invalid placeholder (see resolveTenantSlug).
+const FALLBACK_TENANT_SLUG = process.env.NEXT_PUBLIC_TENANT_SLUG;
 
 export { hasTenantContext };
 
@@ -26,14 +27,18 @@ function resolveApiUrl(): string {
 }
 
 /**
- * Derive the tenant slug from the current browser hostname, falling back to
- * FALLBACK_TENANT_SLUG on the app/root host or during SSR so the X-Tenant-Slug
- * header is always a string. See `slugFromHost` in lib/domain.ts for the
- * environment-aware resolution rules.
+ * Derive the tenant slug from the current browser hostname, or `null` on the
+ * app/root host, during SSR, or when nothing resolves — callers omit the
+ * `X-Tenant-Slug` header entirely rather than send a placeholder. See
+ * `slugFromHost` in lib/domain.ts for the environment-aware resolution rules.
+ *
+ * Previously fell back to the literal `"dev"`, which is a reserved slug that
+ * always 404s — every no-tenant request (e.g. the public marketplace) sent a
+ * header guaranteed to fail tenant resolution, silently swallowed by the UI.
  */
-export function resolveTenantSlug(): string {
-  if (typeof window === "undefined") return FALLBACK_TENANT_SLUG;
-  return slugFromHost(window.location.hostname) ?? FALLBACK_TENANT_SLUG;
+export function resolveTenantSlug(): string | null {
+  if (typeof window === "undefined") return FALLBACK_TENANT_SLUG ?? null;
+  return slugFromHost(window.location.hostname) ?? FALLBACK_TENANT_SLUG ?? null;
 }
 
 export class ApiError extends Error {
