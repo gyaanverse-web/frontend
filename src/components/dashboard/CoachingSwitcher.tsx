@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import { Icon } from "@/components/ui";
 import { roleLabel } from "@/lib/roleLabel";
@@ -18,15 +19,18 @@ export interface CoachingSwitcherProps {
 /**
  * Replaces the static "which coaching am I in" block in `TeacherShell`'s top
  * bar with a dropdown whenever the signed-in user belongs to more than one
- * coaching. Renders identically to the old static text otherwise, so a
- * single-coaching user sees no change.
+ * coaching, or is a `coaching_owner` who can start another one. Renders
+ * identically to the old static text otherwise, so a single-coaching
+ * teacher/student sees no change.
  *
  * Switching coachings is a hard navigation (`buildTenantUrl` + a full page
  * load), not client-side routing — each coaching lives on its own subdomain,
  * same as every other cross-tenant hop in the app (`postAuthRedirect`,
- * `leaveForeignCoaching`).
+ * `leaveForeignCoaching`). "Create another coaching" is a same-origin
+ * client-side push instead, since `/create-coaching` isn't tenant-scoped.
  */
 export function CoachingSwitcher({ tenant, noCoaching = false }: CoachingSwitcherProps) {
+  const router = useRouter();
   const { memberships } = useMemberships();
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<{ top: number; left: number; width: number } | null>(null);
@@ -34,6 +38,13 @@ export function CoachingSwitcher({ tenant, noCoaching = false }: CoachingSwitche
   const menuRef = useRef<HTMLDivElement>(null);
 
   const hasChoice = memberships.length > 1;
+  // Only an existing owner is offered a second institute — a teacher/student
+  // membership elsewhere shouldn't surface "create a coaching" as if it were
+  // a normal switcher option. `POST /tenants` itself has no such gate (any
+  // authenticated user may call it — see D-1, multi-tenancy audit F-9); this
+  // only scopes what the menu *offers*.
+  const canCreateAnother = memberships.some((m) => m.membershipRole === "coaching_owner");
+  const canOpen = hasChoice || canCreateAnother;
 
   const place = () => {
     const r = btnRef.current?.getBoundingClientRect();
@@ -77,19 +88,19 @@ export function CoachingSwitcher({ tenant, noCoaching = false }: CoachingSwitche
       <button
         ref={btnRef}
         type="button"
-        onClick={() => hasChoice && setOpen((v) => !v)}
-        aria-haspopup={hasChoice ? "menu" : undefined}
-        aria-expanded={hasChoice ? open : undefined}
-        disabled={!hasChoice}
+        onClick={() => canOpen && setOpen((v) => !v)}
+        aria-haspopup={canOpen ? "menu" : undefined}
+        aria-expanded={canOpen ? open : undefined}
+        disabled={!canOpen}
         style={{
           display: "flex", alignItems: "center", gap: 6, border: "none", background: "none",
-          padding: 0, cursor: hasChoice ? "pointer" : "default", textAlign: "left",
+          padding: 0, cursor: canOpen ? "pointer" : "default", textAlign: "left",
         }}
       >
         <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em", color: "var(--text-heading)" }}>
           {nameLine}
         </span>
-        {hasChoice && <Icon name="chevron-down" size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />}
+        {canOpen && <Icon name="chevron-down" size={14} style={{ color: "var(--text-muted)", flexShrink: 0 }} />}
       </button>
       {subLine && (
         <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>
@@ -140,6 +151,30 @@ export function CoachingSwitcher({ tenant, noCoaching = false }: CoachingSwitche
               </button>
             );
           })}
+
+          {canCreateAnother && (
+            <>
+              <div style={{ height: 1, background: "var(--border-light)", margin: "4px 2px" }} />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setOpen(false);
+                  router.push("/create-coaching");
+                }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 9, width: "100%", textAlign: "left",
+                  padding: "8px 10px", border: "none", borderRadius: 6, background: "none", cursor: "pointer",
+                  color: "var(--accent)", fontSize: 13.5, fontWeight: 600,
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = "var(--surface-inset)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = "none"; }}
+              >
+                <Icon name="plus" size={15} style={{ flexShrink: 0 }} />
+                Create another coaching
+              </button>
+            </>
+          )}
         </div>,
         document.body,
       )}

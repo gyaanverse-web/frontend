@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { invalidateSession } from "@/lib/sessionStore";
-import { TENANT_ROOT_DOMAIN } from "@/lib/domain";
 import { useTenantSession } from "@/lib/useTenantSession";
 import type { Tenant } from "./types";
 import { sh, btnP, btnS, type DisplayRole } from "./styles";
@@ -17,6 +16,7 @@ import { DangerSection } from "./sections/DangerSection";
 import { NotificationBell } from "@/components/NotificationBell";
 import { Logo, Badge, Button, Eyebrow, Tabs, DetailRows } from "@/components/ui";
 import { AppSidebar, type AppNavKey } from "@/components/dashboard/AppSidebar";
+import { CoachingSwitcher } from "@/components/dashboard/CoachingSwitcher";
 import {
   belongsToStudentArea,
   buildSettingsTabs,
@@ -319,21 +319,20 @@ function DashboardInner() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         {/* Top bar */}
         <header className="gv-topbar" style={{ position: "sticky", top: 0, zIndex: 5 }}>
-          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-            <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em", color: "var(--text-heading)" }}>
-              {tenant.name}
-            </span>
-            <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>{tenant.slug}.{TENANT_ROOT_DOMAIN}</span>
-          </div>
+          {/* Institute switcher, then the bell. Nothing else — deliberately
+              identical to TeacherShell's bar, so the header does not change
+              shape as you move between Dashboard and Exams (the drift
+              AppSidebar exists to prevent). Everything this used to carry said
+              something the shell already said elsewhere: a "Sign out" button
+              beside the sidebar's "Log out", the role beside the sidebar's
+              role badge, a "Public mocks" link no other staff page had, and
+              the avatar + name that now live once, in the sidebar's pinned
+              account footer. This used to hardcode the name/slug instead of
+              using `CoachingSwitcher`, which is why the "create another
+              coaching" option never appeared here even though it worked on
+              every other staff page. */}
+          <CoachingSwitcher tenant={tenant} />
           <div style={{ flex: 1 }} />
-          {/* Institute, then the bell. Nothing else — deliberately identical to
-              TeacherShell's bar, so the header does not change shape as you move
-              between Dashboard and Exams (the drift AppSidebar exists to
-              prevent). Everything this used to carry said something the shell
-              already said elsewhere: a "Sign out" button beside the sidebar's
-              "Log out", the role beside the sidebar's role badge, a "Public
-              mocks" link no other staff page had, and the avatar + name that now
-              live once, in the sidebar's pinned account footer. */}
           <NotificationBell />
         </header>
 
