@@ -38,7 +38,6 @@ export interface SessionUser {
   name: string;
   email: string;
   emailVerified: boolean;
-  tenantId: string | null;
   isProfileComplete: boolean;
 }
 

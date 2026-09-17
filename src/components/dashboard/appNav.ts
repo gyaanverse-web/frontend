@@ -73,8 +73,8 @@ export function resolveDisplayRole(
  *
  *  - membership role present → it decides, because it is what the server
  *    authorises on;
- *  - a non-default account role ('super_admin', or staff whose membership is
- *    still loading elsewhere) is staff;
+ *  - a non-default account role (in practice, only 'super_admin' — it is
+ *    platform-level and never a coaching-scoped value) is staff;
  *  - otherwise the signup intent decides. This is the pre-tenant case: a
  *    coaching owner between "verified my email" and "named my institute" has no
  *    membership and the default 'student' account role, and without the intent
