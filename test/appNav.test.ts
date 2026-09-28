@@ -1,27 +1,49 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildAppNav, resolveDisplayRole, belongsToStudentArea, type AppNavKey, type NavEntry,
+  buildAppNav, buildSettingsTabs, resolveDisplayRole, belongsToStudentArea,
+  landingPathForRole, ACCOUNT_ENTRY, type AppNavKey, type NavEntry,
 } from "@/components/dashboard/appNav";
+import { NO_BILLING, type Entitlements } from "@/lib/entitlements";
 
 // Nav entries are either a link (has `key`) or a section header (has `section`).
 type LinkEntry = Extract<NavEntry, { key: AppNavKey }>;
+
+/** Billing live. Everything else matches the default, so a test that flips this
+ *  is isolating the billing switch and nothing else. */
+const BILLING_ON: Entitlements = { ...NO_BILLING, billingEnabled: true };
+
 const links = (role: string) =>
   buildAppNav(role).filter((e): e is LinkEntry => "key" in e);
 const keys = (role: string) => links(role).map((e) => e.key);
 const labelFor = (role: string, key: AppNavKey) =>
   links(role).find((e) => e.key === key)?.label;
 
+const ROLES = ["coaching_owner", "teacher", "student"] as const;
+
 describe("buildAppNav", () => {
   describe("coaching_owner", () => {
-    it('labels the classes link "Classes" (owner sees every teacher\'s batch)', () => {
-      expect(labelFor("coaching_owner", "classes")).toBe("Classes");
+    it('labels the batches link "Batches" (owner sees every teacher\'s batch)', () => {
+      expect(labelFor("coaching_owner", "batches")).toBe("Batches");
     });
 
     it("exposes the owner-only surfaces", () => {
       const k = keys("coaching_owner");
       expect(k).toEqual(
-        expect.arrayContaining(["teachers", "invites", "plan", "settings", "danger", "members"]),
+        expect.arrayContaining(["teachers", "invites", "settings", "members"]),
       );
+    });
+
+    // Billing and the danger zone are TABS on Settings now, not nav rows. The
+    // rules that used to live here are pinned in `buildSettingsTabs` below —
+    // this pair only guards against them creeping back into the sidebar.
+    it("has no Plan & Billing row in the sidebar at all", () => {
+      expect(keys("coaching_owner")).not.toContain("plan");
+    });
+
+    it("has no Danger Zone row in the sidebar", () => {
+      // "Delete this institute" must not sit one mis-click from "Settings" in a
+      // menu that is on screen all day.
+      expect(keys("coaching_owner")).not.toContain("danger");
     });
 
     it("includes the Teachers roster link pointing at /teachers", () => {
@@ -31,8 +53,8 @@ describe("buildAppNav", () => {
   });
 
   describe("teacher", () => {
-    it('labels the classes link "My Classes" (teacher sees only their own)', () => {
-      expect(labelFor("teacher", "classes")).toBe("My Classes");
+    it('labels the batches link "My Batches" (teacher sees only their own)', () => {
+      expect(labelFor("teacher", "batches")).toBe("My Batches");
     });
 
     it("does NOT expose owner-only surfaces (teachers/invites/plan/settings/danger)", () => {
@@ -46,19 +68,52 @@ describe("buildAppNav", () => {
 
     it("still gets the shared staff surfaces", () => {
       const k = keys("teacher");
-      expect(k).toEqual(expect.arrayContaining(["dashboard", "classes", "exams", "question-bank", "members"]));
+      expect(k).toEqual(expect.arrayContaining(["dashboard", "batches", "exams", "question-bank", "members"]));
+    });
+  });
+
+  // "Settings" (the owner's institute) and "Account" (the person) are different
+  // subjects. Conflating them left teachers with no route to their own profile,
+  // verification state or notification preferences at all — the real preferences
+  // screen was reachable only from inside the notification bell.
+  describe("account entry", () => {
+    // Account is pinned in the sidebar FOOTER, below the spacer, so it is not
+    // part of the nav list any role builds. Every role gets the same one.
+    it("is a single shared entry pointing at /account", () => {
+      expect(ACCOUNT_ENTRY).toMatchObject({ key: "account", label: "Account", href: "/account" });
+    });
+
+    it("never appears in a role's nav list — it belongs to the footer", () => {
+      for (const role of ROLES) {
+        expect(keys(role), `${role} still lists account in the nav`).not.toContain("account");
+      }
+    });
+
+    it("keeps the owner's institute Settings distinct from the account entry", () => {
+      expect(keys("coaching_owner")).toContain("settings");
+      expect(ACCOUNT_ENTRY.href).not.toContain("screen=Settings");
+    });
+
+    // Two identical gears one section apart is how the two meanings got confused.
+    it("does not reuse one icon for two different rows, footer included", () => {
+      for (const role of ROLES) {
+        const icons = [...links(role).map((e) => e.icon), ACCOUNT_ENTRY.icon];
+        expect(new Set(icons).size, `${role} has duplicate nav icons`).toBe(icons.length);
+      }
     });
   });
 
   describe("student", () => {
     it("gets the student area and none of the staff surfaces", () => {
+      // No "account" here: it is pinned in the sidebar footer for every role,
+      // outside the nav list. See ACCOUNT_ENTRY.
       expect(keys("student")).toEqual([
-        "home", "exams", "results", "classes", "marketplace", "account",
+        "home", "exams", "results", "batches", "fees", "marketplace",
       ]);
     });
 
-    it('keeps the classes label as "My Classes"', () => {
-      expect(labelFor("student", "classes")).toBe("My Classes");
+    it('keeps the batches label as "My Batches"', () => {
+      expect(labelFor("student", "batches")).toBe("My Batches");
     });
 
     // The student area is real routes under /student, not ?screen= on the staff
@@ -70,9 +125,9 @@ describe("buildAppNav", () => {
         home: "/student",
         exams: "/student/exams",
         results: "/student/results",
-        classes: "/student/classes",
+        batches: "/student/batches",
+        fees: "/student/fees",
         marketplace: "/student/marketplace",
-        account: "/account",
       });
     });
 
@@ -85,6 +140,42 @@ describe("buildAppNav", () => {
 
   it("treats an unknown role like a student (least privilege)", () => {
     expect(keys("super_admin")).toEqual(keys("student"));
+  });
+});
+
+// The billing gate did not disappear when "Plan & Billing" stopped being a nav
+// row — it moved down a level, to the tabs on the Settings screen. These pin the
+// same two conditions the sidebar used to encode.
+describe("buildSettingsTabs", () => {
+  it("gives the owner General and Danger Zone while billing is off", () => {
+    expect(buildSettingsTabs("coaching_owner", NO_BILLING)).toEqual(["general", "danger"]);
+  });
+
+  it("adds Billing once the platform switch is on", () => {
+    expect(buildSettingsTabs("coaching_owner", BILLING_ON)).toEqual(["general", "billing", "danger"]);
+  });
+
+  it("defaults to the billing-off answer when entitlements are not passed", () => {
+    // Callable before the session resolves; the default must not flash a billing
+    // tab that then vanishes.
+    expect(buildSettingsTabs("coaching_owner")).not.toContain("billing");
+  });
+
+  it("gives non-owners no tabs at all — the screen is owner-only", () => {
+    expect(buildSettingsTabs("teacher", BILLING_ON)).toEqual([]);
+    expect(buildSettingsTabs("student", BILLING_ON)).toEqual([]);
+  });
+
+  it("always leads with General, so an unknown ?tab= falls back to something real", () => {
+    expect(buildSettingsTabs("coaching_owner", BILLING_ON)[0]).toBe("general");
+    expect(buildSettingsTabs("coaching_owner", NO_BILLING)[0]).toBe("general");
+  });
+
+  // Danger Zone left the sidebar but must stay reachable, or an owner has no way
+  // to delete their coaching at all.
+  it("still offers Danger Zone to the owner in both billing states", () => {
+    expect(buildSettingsTabs("coaching_owner", NO_BILLING)).toContain("danger");
+    expect(buildSettingsTabs("coaching_owner", BILLING_ON)).toContain("danger");
   });
 });
 
@@ -205,5 +296,19 @@ describe("belongsToStudentArea", () => {
       const navIsStudent = keys(display ?? "student").includes("home");
       expect(navIsStudent).toBe(inStudentArea);
     }
+  });
+});
+
+// The tenant switcher and the login-time chooser both hop straight to a named
+// coaching, so neither goes through /coaching/dashboard's own student bounce —
+// this is the function that has to get the destination right on its own.
+describe("landingPathForRole", () => {
+  it("sends a student membership to the student area", () => {
+    expect(landingPathForRole("student")).toBe("/student");
+  });
+
+  it("sends every staff membership to the coaching dashboard", () => {
+    expect(landingPathForRole("coaching_owner")).toBe("/coaching/dashboard");
+    expect(landingPathForRole("teacher")).toBe("/coaching/dashboard");
   });
 });

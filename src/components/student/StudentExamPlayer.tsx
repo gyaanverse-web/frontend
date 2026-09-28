@@ -588,6 +588,35 @@ function QuestionInput({
     const pairs = (s?.pairs as { leftId: string; rightId: string }[]) ?? [];
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {/*
+          Column B is listed in full here and the dropdowns below carry only its
+          labels. A native <option> renders text and nothing else, so a right-hand
+          item containing maths would reach the student as raw LaTeX with no way
+          to read it — and the dropdown is the only place those items appear.
+          Keeping the native select (real keyboard and touch behaviour) and moving
+          the reading to this key fixes that without rebuilding the control.
+        */}
+        <div
+          style={{
+            border: "1px solid var(--border-default)",
+            borderRadius: "var(--radius-md)",
+            background: "var(--surface-inset)",
+            padding: "12px 14px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>
+            Column B
+          </span>
+          {right.map((r) => (
+            <span key={r.id} style={{ fontSize: 14, color: "var(--text-heading)" }}>
+              {r.id}. <MathText text={r.text} />
+            </span>
+          ))}
+        </div>
+
         {left.map((l) => {
           const pair = pairs.find((p) => p.leftId === l.id);
           return (
@@ -595,6 +624,7 @@ function QuestionInput({
               <span style={{ flex: 1, fontSize: 14 }}>{l.id}. <MathText text={l.text} /></span>
               <select
                 className="gv-select"
+                aria-label={`Match ${l.id} to an item in Column B`}
                 value={pair?.rightId ?? ""}
                 onChange={(e) => {
                   const updated = pairs.filter((p) => p.leftId !== l.id);
@@ -604,7 +634,7 @@ function QuestionInput({
                 style={{ width: 200 }}
               >
                 <option value="">— select —</option>
-                {right.map((r) => <option key={r.id} value={r.id}>{r.id}. {r.text}</option>)}
+                {right.map((r) => <option key={r.id} value={r.id}>{r.id}</option>)}
               </select>
             </div>
           );

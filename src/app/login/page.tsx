@@ -47,7 +47,7 @@ function LoginContent() {
           setAuthChecking(false);
           return;
         }
-        void postAuthRedirect(router, { nextParam: params.get("next") });
+        void postAuthRedirect(router, { nextParam: params.get("next"), offerChooser: true });
       })
       .catch(() => setAuthChecking(false));
   }, []);
@@ -70,7 +70,7 @@ function LoginContent() {
     // the session and the coaching to decide where to send us, and against that
     // stale copy it would route a freshly signed-in user as an anonymous one.
     invalidateSession();
-    void postAuthRedirect(router, { nextParam: params.get("next") });
+    void postAuthRedirect(router, { nextParam: params.get("next"), offerChooser: true });
   }
 
   function switchMethod(m: Method) {
@@ -152,37 +152,9 @@ function LoginContent() {
         }}
       >
         <h2 style={{ fontSize: 28, marginBottom: 6 }}>Sign in.</h2>
-        <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)", marginBottom: 28 }}>
-          Welcome back to Gyanverse.
+        <p style={{ fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-muted)", marginBottom: 24 }}>
+          For students and teachers of Gyaanverse.
         </p>
-
-        {/* Method tabs — pill switcher */}
-        <div style={{ display: "flex", background: "var(--paper-100)", borderRadius: "var(--radius-pill)", padding: 4, marginBottom: 24, gap: 4 }}>
-          {(["email", "phone"] as const).map((m) => {
-            const active = method === m;
-            return (
-              <button
-                key={m}
-                onClick={() => switchMethod(m)}
-                style={{
-                  flex: 1,
-                  padding: "9px 0",
-                  border: "none",
-                  borderRadius: "var(--radius-pill)",
-                  background: active ? "#fff" : "transparent",
-                  boxShadow: active ? "var(--shadow-sm)" : "none",
-                  fontFamily: "var(--font-body)",
-                  fontSize: 14,
-                  fontWeight: active ? 600 : 400,
-                  color: active ? "var(--text-heading)" : "var(--text-muted)",
-                  cursor: "pointer",
-                }}
-              >
-                {m === "email" ? "Email" : "Phone OTP"}
-              </button>
-            );
-          })}
-        </div>
 
         {notice && (
           <div style={{ marginBottom: 18, padding: "10px 14px", background: "var(--success-soft)", border: "1px solid rgba(16,185,129,0.35)", borderRadius: "var(--radius-md)", fontSize: 13, color: "#0f7a5a" }}>
@@ -193,6 +165,13 @@ function LoginContent() {
         {/* ── Email form ─────────────────────────────────────────────── */}
         {method === "email" && (
           <form onSubmit={handleEmailSubmit} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <button
+              type="button"
+              onClick={() => switchMethod("phone")}
+              style={{ alignSelf: "flex-end", background: "none", border: "none", padding: 0, marginTop: -8, fontFamily: "var(--font-body)", fontSize: 13, color: "var(--accent)", cursor: "pointer" }}
+            >
+              Use phone instead
+            </button>
             <label style={{ display: "block" }}>
               <span className="gv-label">Email</span>
               <input
@@ -229,6 +208,13 @@ function LoginContent() {
         {/* ── Phone form ─────────────────────────────────────────────── */}
         {method === "phone" && phoneStep === "number" && (
           <form onSubmit={handleSendOtp} style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <button
+              type="button"
+              onClick={() => switchMethod("email")}
+              style={{ alignSelf: "flex-end", background: "none", border: "none", padding: 0, marginTop: -8, fontFamily: "var(--font-body)", fontSize: 13, color: "var(--accent)", cursor: "pointer" }}
+            >
+              Use email instead
+            </button>
             <label style={{ display: "block" }}>
               <span className="gv-label">Mobile number</span>
               <input
@@ -301,11 +287,14 @@ function LoginContent() {
           <span style={{ fontSize: 12, color: "var(--text-muted)" }}>or</span>
           <span style={{ flex: 1, height: 1, background: "var(--border-light)" }} />
         </div>
-        <p style={{ textAlign: "center", fontSize: 14, color: "var(--text-body)", margin: 0 }}>
-          New to Gyanverse?{" "}
+        <p style={{ textAlign: "center", fontSize: 14, color: "var(--text-body)", margin: "0 0 8px" }}>
+          New to Gyaanverse?{" "}
           <Link href="/register" style={{ color: "var(--accent)", fontWeight: 600 }}>
             Create account
           </Link>
+        </p>
+        <p style={{ textAlign: "center", fontSize: 12, color: "var(--text-muted)", margin: 0, lineHeight: 1.5 }}>
+          Teaching at a coaching institute? Ask your admin for an invite link — teachers don't self-register.
         </p>
       </div>
     </div>

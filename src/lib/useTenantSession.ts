@@ -9,6 +9,8 @@ import {
   subscribeToSession,
 } from "@/lib/sessionStore";
 import { resolveDisplayRole } from "@/components/dashboard/appNav";
+import { NO_BILLING, type Entitlements } from "@/lib/entitlements";
+import { isForeignCoaching, leaveForeignCoaching } from "@/lib/tenantUrl";
 
 /**
  * The role a user holds **within one coaching**. Read from the `memberships`
@@ -36,7 +38,6 @@ export interface SessionUser {
   name: string;
   email: string;
   emailVerified: boolean;
-  tenantId: string | null;
   isProfileComplete: boolean;
 }
 
@@ -46,6 +47,12 @@ export interface TenantBase {
   id: string;
   slug: string;
   name: string;
+}
+
+/** One coaching the signed-in user belongs to, and their role in it. */
+export interface Membership {
+  tenant: TenantBase;
+  membershipRole: TenantRole;
 }
 
 export interface UseTenantSessionOptions {
@@ -71,6 +78,16 @@ export interface TenantSession<T extends TenantBase> {
   tenant: T | null;
   /** The caller's role in `tenant`. Null while loading or when there is none. */
   role: TenantRole | null;
+  /**
+   * What this coaching may do, resolved server-side — plan limits, feature
+   * gates, and whether billing is live at all. Never null: falls back to
+   * `NO_BILLING` while loading, for a user with no coaching, and against an API
+   * old enough not to send it.
+   *
+   * Display only. Gate chrome on it; never treat it as authorisation, because
+   * the API re-checks every value independently.
+   */
+  entitlements: Entitlements;
   /**
    * The role the **chrome** (sidebar, badges) should render for — the single
    * answer to "which navigation does this person get?".
@@ -149,6 +166,7 @@ export function useTenantSession<T extends TenantBase = TenantBase>(
     user: null,
     tenant: null,
     role: null,
+    entitlements: NO_BILLING,
     noTenant: false,
     accountRole: null,
     signupIntent: null,
@@ -184,24 +202,36 @@ export function useTenantSession<T extends TenantBase = TenantBase>(
       const { role: accountRole = null, signupIntent = null, ...user } = sessionUser;
 
       if (tenantResult.status === "rejected") {
+        // On a coaching they don't belong to, while belonging to another: send
+        // them to their own, same page. Before the API scoped `/tenants/me` to
+        // the subdomain, this page would have rendered the other coaching's
+        // name and role over requests authorised against this one. Stays
+        // `loading` so nothing renders ahead of the navigation.
+        if (isForeignCoaching(tenantResult.reason)) {
+          leaveForeignCoaching(window.location.pathname + window.location.search);
+          return;
+        }
         if (requireTenant) {
           router.push("/coaching/dashboard");
           return;
         }
         setState({
-          loading: false, user, tenant: null, role: null, noTenant: true, accountRole, signupIntent,
+          loading: false, user, tenant: null, role: null, entitlements: NO_BILLING,
+          noTenant: true, accountRole, signupIntent,
         });
         return;
       }
 
-      const { tenant, membershipRole } = tenantResult.value;
+      const { tenant, membershipRole, entitlements } = tenantResult.value;
       if (allowKey !== "" && !allowKey.split(",").includes(membershipRole)) {
         router.push(denyRedirect);
         return;
       }
 
       setState({
-        loading: false, user, tenant, role: membershipRole, noTenant: false, accountRole, signupIntent,
+        loading: false, user, tenant, role: membershipRole,
+        entitlements: entitlements ?? NO_BILLING,
+        noTenant: false, accountRole, signupIntent,
       });
     });
 
@@ -227,4 +257,44 @@ export function useTenantSession<T extends TenantBase = TenantBase>(
     }),
     [state, refresh],
   );
+}
+
+/**
+ * Every coaching the signed-in user belongs to — the data behind the coaching
+ * switcher.
+ *
+ * Deliberately separate from `useTenantSession`: that hook redirects on an
+ * unauthenticated or disallowed-role visit, which a switcher must never
+ * trigger just by mounting alongside it. This reads the same cached
+ * `/tenants/me` response (shared through `lib/sessionStore`'s TTL cache), so
+ * mounting it next to a page's own `useTenantSession` costs no extra request.
+ *
+ * Resolves to an empty list on any failure (signed out, no coaching, network) —
+ * callers render nothing rather than an error, same as a switcher with one
+ * membership renders nothing.
+ */
+export function useMemberships(): { memberships: Membership[]; loading: boolean } {
+  const [nonce, setNonce] = useState(0);
+  const [state, setState] = useState<{ memberships: Membership[]; loading: boolean }>({
+    memberships: [],
+    loading: true,
+  });
+
+  useEffect(() => subscribeToSession(() => setNonce((n) => n + 1)), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getTenant()
+      .then((data) => {
+        if (!cancelled) setState({ memberships: data.memberships ?? [], loading: false });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ memberships: [], loading: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [nonce]);
+
+  return state;
 }

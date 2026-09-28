@@ -7,8 +7,9 @@ import { FeedbackCallout } from "./FeedbackCallout";
 export type AIEvaluationStatus = "evaluated" | "evaluating" | "pending";
 
 export interface AIEvaluationCardProps extends HTMLAttributes<HTMLDivElement> {
-  student?: string;
-  exam?: string;
+  student?: ReactNode;
+  /** Takes a node so callers can pass a KaTeX-rendered question body, not just a title. */
+  exam?: ReactNode;
   score?: number | string;
   outOf?: number;
   status?: AIEvaluationStatus;
@@ -22,7 +23,7 @@ export interface AIEvaluationCardProps extends HTMLAttributes<HTMLDivElement> {
 
 // `teacherOverride` / `onOverride` used to live here, wired to nothing. They are
 // gone rather than implemented: the client's 2026-08-12 decision routes every
-// manual score correction to a Gyanverse operator via /internal/evaluation/*,
+// manual score correction to a Gyaanverse operator via /internal/evaluation/*,
 // never to the coaching. A teacher-facing "Override Score" button is a
 // teacher-facing statement that the AI got it wrong, which is exactly the
 // failure-visibility the resilience work removes — and it would have been the

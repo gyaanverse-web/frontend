@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Logo, Button } from "@/components/ui";
 
 const PAGE_BG =
@@ -12,14 +12,16 @@ const PAGE_BG =
 /**
  * Landing page for the link in the verification email.
  *
- * The link itself points at the API (only it can consume the token). Better
- * Auth verifies the token, then 302s the browser here — plain on success, or
- * with `?error=<CODE>` when the token was expired/invalid. So this page never
- * talks to the API to *verify*; by the time it renders, the outcome is decided
- * and encoded in the query string.
+ * The emailed link lands here with `?token=<jwt>` and this page spends it
+ * against the API. The token can only be consumed by the API, but the link must
+ * not point there directly — see appTokenUrl in the backend's shared/urls.ts:
+ * mailing an API URL that carried a URL-encoded callbackURL got signups a
+ * Safe Browsing "dangerous site" interstitial.
  *
- * Note: an already-verified user is redirected here WITHOUT an error, so a
- * double-click on the link shows success rather than a confusing failure.
+ * Better Auth answers 200 on success and 401 `{ code }` otherwise, with the
+ * same codes it used to put in the old `?error=` redirect. Verifying an already
+ * verified user is a 200, so a double-click on the link shows success rather
+ * than a confusing failure.
  */
 
 // Better Auth's BASE_ERROR_CODES, as they appear in the ?error= param.
@@ -49,12 +51,35 @@ const FALLBACK_ERROR = {
 
 function VerifyEmailContent() {
   const params = useSearchParams();
-  const errorCode = params.get("error");
+  const token = params.get("token");
 
+  // null while the request is in flight; "" once verified; an error code on failure.
+  const [result, setResult] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
   const [resendError, setResendError] = useState("");
+
+  // Guards against React's double-invoked effect in dev. Verification is
+  // idempotent server-side, so a second call would still succeed — this just
+  // avoids the redundant round-trip.
+  const spent = useRef(false);
+
+  useEffect(() => {
+    if (!token || spent.current) return;
+    spent.current = true;
+
+    api
+      .get(`/api/auth/verify-email?token=${encodeURIComponent(token)}`)
+      .then(() => setResult(""))
+      .catch((err) =>
+        setResult(err instanceof ApiError ? err.code ?? "UNKNOWN" : "UNKNOWN"),
+      );
+  }, [token]);
+
+  // A link with no token at all never reaches the API, so its outcome is known
+  // at render time rather than being something the effect has to report.
+  const errorCode = token ? result : "INVALID_TOKEN";
 
   async function handleResend(e: React.FormEvent) {
     e.preventDefault();
@@ -70,7 +95,15 @@ function VerifyEmailContent() {
     }
   }
 
-  const success = !errorCode;
+  if (errorCode === null) {
+    return (
+      <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: PAGE_BG, fontSize: 14, color: "var(--text-muted)" }}>
+        Verifying your email…
+      </div>
+    );
+  }
+
+  const success = errorCode === "";
   const copy = success ? null : ERROR_COPY[errorCode] ?? FALLBACK_ERROR;
 
   return (

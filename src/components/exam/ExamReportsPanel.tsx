@@ -34,7 +34,7 @@ export type TeacherReportRow = {
  *
  * Carries no score and no reason, because the API deliberately sends neither: the
  * list mixes papers still being evaluated with papers held for a final check by
- * Gyanverse, and the teacher must not be able to tell which is which. Render it
+ * Gyaanverse, and the teacher must not be able to tell which is which. Render it
  * with one neutral label for every row.
  */
 export type AwaitingReportRow = {
@@ -139,6 +139,13 @@ const STEP_TONE: Record<EvaluatedStep["step_status"], string> = {
   unknown: "var(--text-muted)",
 };
 
+const STEP_LABEL: Record<EvaluatedStep["step_status"], string> = {
+  right: "Correct",
+  wrong: "Incorrect",
+  incomplete: "Incomplete",
+  unknown: "Unclear",
+};
+
 function toneColor(tone: BadgeTone): string {
   if (tone === "success") return "var(--success)";
   if (tone === "warning") return "var(--warning)";
@@ -213,7 +220,7 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
 
   // Re-fetch while anyone is still waiting. Both reasons a student sits in this
   // list resolve without the teacher doing anything — evaluation finishes, or a
-  // Gyanverse operator scores the answer — so the list has to be able to empty
+  // Gyaanverse operator scores the answer — so the list has to be able to empty
   // itself, or the teacher is left refreshing a page to find out whether the
   // thing they were told needs nothing from them is done.
   // `reloadKey` is in the deps so each poll re-arms the next one. Without it the
@@ -468,7 +475,7 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
       {stats && (
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
           <ScoreTile label="Reports" value={String(reports.length)} />
-          <ScoreTile label="Class average" value={`${stats.avg}%`} tone={scoreTone(stats.avg, 100)} />
+          <ScoreTile label="Batch average" value={`${stats.avg}%`} tone={scoreTone(stats.avg, 100)} />
           <ScoreTile label="Highest" value={`${pct(stats.top.totalScore, stats.top.maxScore)}%`} sub={stats.top.studentName} />
           <ScoreTile label="Lowest" value={`${pct(stats.low.totalScore, stats.low.maxScore)}%`} sub={stats.low.studentName} />
           <ScoreTile label="AI-graded" value={`${stats.aiGraded}`} sub="papers with AI marks" />
@@ -566,7 +573,7 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
  *      is a step in the process, and colour is read faster than copy.
  *   3. **Not a table row and not clickable.** There is no score behind it and
  *      nothing to drill into; a row of em-dashes in a marks table invites a click
- *      that can only disappoint, and would drag these into the class average.
+  *      that can only disappoint, and would drag these into the batch average.
  */
 function AwaitingReportList({ rows }: { rows: AwaitingReportRow[] }) {
   if (rows.length === 0) return null;
@@ -636,7 +643,7 @@ function AiFeedbackBlock({ raw }: { raw: string }) {
   if (parsed === null) {
     return (
       <FeedbackCallout kind="mistake" title="AI feedback" style={{ marginTop: 12 }}>
-        {raw}
+        <MathText text={raw} />
       </FeedbackCallout>
     );
   }
@@ -644,7 +651,7 @@ function AiFeedbackBlock({ raw }: { raw: string }) {
   // An answer whose stored feedback is an error payload rather than marked-up
   // working. The teacher is told it is unfinished and nothing more: they cannot
   // re-run it, and the ones that genuinely cannot be graded by machine are
-  // already with a Gyanverse operator, who will supply a real score. Naming the
+  // already with a Gyaanverse operator, who will supply a real score. Naming the
   // engine's error here would be both alarming and useless — see
   // docs/api/evaluation-resilience-checklist.md, Phase 8.
   //
@@ -682,7 +689,7 @@ function AiFeedbackBlock({ raw }: { raw: string }) {
               />
               <MathText text={s.text} style={{ flex: 1, minWidth: 0, fontSize: 13.5, lineHeight: 1.55, color: "var(--text-body)" }} />
               <span style={{ ...muted, marginLeft: "auto", flex: "none", color: STEP_TONE[s.step_status] }}>
-                {s.step_status}
+                {STEP_LABEL[s.step_status]}
               </span>
             </li>
           ))}

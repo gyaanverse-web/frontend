@@ -5,7 +5,7 @@ export interface LogoProps extends HTMLAttributes<HTMLSpanElement> {
   onDark?: boolean;
 }
 
-/** GYANVERSE wordmark — heavy grotesk + electric-blue period. onDark for navy surfaces. */
+/** GYAANVERSE wordmark — heavy grotesk + electric-blue period. onDark for navy surfaces. */
 export function Logo({ size = 22, onDark = false, style, ...rest }: LogoProps) {
   return (
     <span
@@ -21,7 +21,7 @@ export function Logo({ size = 22, onDark = false, style, ...rest }: LogoProps) {
       }}
       {...rest}
     >
-      GYANVERSE
+      GYAANVERSE
       <span style={{ color: "var(--blue-600)" }}>.</span>
     </span>
   );

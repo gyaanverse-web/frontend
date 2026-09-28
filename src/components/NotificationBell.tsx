@@ -280,13 +280,14 @@ export function NotificationBell() {
       const sseRoute = hasTenantContext() ? "/tenant/notifications/stream" : "/notifications/stream";
       const url = new URL(sseRoute, getApiBase());
 
+      const slug = resolveTenantSlug();
       try {
         const res = await fetch(url.toString(), {
           credentials: "include",
           signal: ctrl.signal,
           headers: {
             Accept: "text/event-stream",
-            "X-Tenant-Slug": resolveTenantSlug(),
+            ...(slug ? { "X-Tenant-Slug": slug } : {}),
           },
         });
         if (!res.ok || !res.body) {
@@ -637,7 +638,7 @@ export function NotificationBell() {
             }}
           >
             <a
-              href="/settings"
+              href="/account?tab=notifications"
               style={{
                 display: "inline-flex",
                 alignItems: "center",

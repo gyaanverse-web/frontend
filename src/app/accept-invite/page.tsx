@@ -502,7 +502,7 @@ function AcceptInviteContent() {
 
         <p style={{ fontSize: 14, color: "var(--text-body)", margin: "0 0 20px", lineHeight: 1.6 }}>
           Sign in with that email to accept — or create an account with it if you&apos;re new to
-          Gyanverse. We&apos;ll bring you straight back here.
+          Gyaanverse. We&apos;ll bring you straight back here.
         </p>
 
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

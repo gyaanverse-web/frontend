@@ -5,10 +5,9 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { api } from "@/lib/api";
 import { invalidateSession } from "@/lib/sessionStore";
-import { TENANT_ROOT_DOMAIN } from "@/lib/domain";
-import { Avatar } from "@/components/ui";
 import { NotificationBell } from "@/components/NotificationBell";
 import { AppSidebar, type AppNavKey } from "./AppSidebar";
+import { CoachingSwitcher } from "./CoachingSwitcher";
 import type { TenantRole } from "@/lib/useTenantSession";
 
 /** Nav keys identify the active route so the sidebar highlights correctly. */
@@ -77,43 +76,25 @@ export function TeacherShell({
     router.push("/login");
   }
 
-  const userName = user?.name ?? "";
-
   return (
     <div style={{ display: "flex", width: "100%", minHeight: "100vh", background: "var(--bg-page)" }}>
       {/* ── Sidebar (shared, identical everywhere) ───────────────────────── */}
-      <AppSidebar role={role} activeKey={active} onLogout={handleLogout} />
+      <AppSidebar role={role} activeKey={active} user={user} onLogout={handleLogout} />
 
       {/* ── Main column ─────────────────────────────────────────────────── */}
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <header className="gv-topbar" style={{ position: "sticky", top: 0, zIndex: 5 }}>
-          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-            <span style={{ fontFamily: "var(--font-sans)", fontWeight: 700, fontSize: 15, letterSpacing: "-0.01em", color: "var(--text-heading)" }}>
-              {noCoaching ? "Gyanverse" : tenant?.name ?? "Loading…"}
-            </span>
-            {noCoaching ? (
-              <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>
-                Not in a coaching yet
-              </span>
-            ) : tenant?.slug ? (
-              <span style={{ fontFamily: "var(--font-body)", fontSize: 12, color: "var(--text-muted)" }}>
-                {tenant.slug}.{TENANT_ROOT_DOMAIN}
-              </span>
-            ) : null}
-          </div>
+          <CoachingSwitcher tenant={tenant} noCoaching={noCoaching} />
           <div style={{ flex: 1 }} />
           {noCoaching && (
             <Link href="/join" className="gv-btn gv-btn--secondary gv-btn--sm">
               <span>Join a coaching</span>
             </Link>
           )}
+          {/* No avatar and no name here on purpose. The identity block is pinned
+              to the bottom of the sidebar, in one place; this bar answers "which
+              coaching am I in?" and nothing else. */}
           <NotificationBell />
-          {userName && (
-            <div style={{ display: "flex", alignItems: "center", gap: 8, paddingLeft: 4 }}>
-              <Avatar name={userName} size={28} />
-              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--text-heading)" }}>{userName}</span>
-            </div>
-          )}
         </header>
 
         {headerless ? (

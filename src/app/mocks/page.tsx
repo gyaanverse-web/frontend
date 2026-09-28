@@ -31,6 +31,16 @@ type Subject = {
 
 
 
+/**
+ * The SIGNED-OUT public catalogue. Renders the `NavBar` chrome for visitors who
+ * have no session and no sidebar to keep.
+ *
+ * Signed-in students get the same `GET /exams/public` list at
+ * `/student/marketplace`, inside the app shell. The two are not redundant — they
+ * serve different audiences — but every in-app link must point at the student
+ * one, or a signed-in student loses their navigation mid-journey. Check before
+ * adding a link here.
+ */
 export default function PublicExamsPage() {
   const router = useRouter();
   const [exams, setExams]           = useState<PublicExam[]>([]);
@@ -209,7 +219,7 @@ export default function PublicExamsPage() {
       </main>
 
       <footer style={{ borderTop: "1px solid var(--border-default)", padding: "14px 28px", fontSize: 13, color: "var(--text-muted)" }}>
-        &copy; {new Date().getFullYear()} Gyanverse
+        &copy; {new Date().getFullYear()} Gyaanverse
       </footer>
     </div>
   );

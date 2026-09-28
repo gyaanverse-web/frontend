@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useTenantSession } from "@/lib/useTenantSession";
 import { QuestionEditor, parseToEditor, buildPayloadAnswer, emptyEditor, Field, type EditorState } from "@/components/QuestionEditor";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
+import { MathText } from "@/components/Math";
 import { Button, Badge, Input, Icon } from "@/components/ui";
 import type { BadgeTone, IconName } from "@/components/ui";
 import { examStatusLabel, type ExamStatus } from "@/lib/examStatus";
@@ -15,7 +16,7 @@ import { examStatusLabel, type ExamStatus } from "@/lib/examStatus";
 type Tenant = { id: string; slug: string; name: string };
 type Subject = { id: string; name: string; gradeLevel: string | null };
 type Item = { id: string; name: string };
-type ClassItem = { id: string; name: string; grade: string | null; studentCount?: number };
+type BatchItem = { id: string; name: string; grade: string | null; studentCount?: number };
 
 type Difficulty = "easy" | "medium" | "hard";
 type DraftStatus = "pending" | "kept" | "discarded" | null;
@@ -179,7 +180,7 @@ function Stepper({
   current, furthest, onGo,
 }: { current: number; furthest: number; onGo?: (n: number) => void }) {
   const steps = [
-    { n: 1, l: "Class & Subject" },
+    { n: 1, l: "Batch & Subject" },
     { n: 2, l: "Select Scope" },
     { n: 3, l: "Distribution" },
     { n: 4, l: "Review & Submit" },
@@ -236,7 +237,7 @@ function SaveIndicator({ state }: { state: "idle" | "saving" | "saved" | "error"
 
 // ── Resume list ───────────────────────────────────────────────────────────────
 
-const STEP_LABELS = ["Class & Subject", "Select Scope", "Distribution", "Review & Submit"];
+const STEP_LABELS = ["Batch & Subject", "Select Scope", "Distribution", "Review & Submit"];
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime();
@@ -320,13 +321,13 @@ export default function TestEnginePage() {
   const [resuming, setResuming] = useState<string | null>(null);
   const [discardingId, setDiscardingId] = useState<string | null>(null);
 
-  // ── Class & subject (step 1) ────────────────────────────────────────────────
-  // The paper is authored *for* a class, so the class is picked before any
-  // scope/distribution work. `submitForReview` rejects a classless private exam
+  // ── Batch & subject (step 1) ────────────────────────────────────────────────
+  // The paper is authored *for* a batch, so the batch is picked before any
+  // scope/distribution work. `submitForReview` rejects a batchless private exam
   // anyway — asking here turns a late error into an upfront choice.
-  const [classList, setClassList] = useState<ClassItem[]>([]);
-  const [classesLoading, setClassesLoading] = useState(true);
-  const [selectedClassIds, setSelectedClassIds] = useState<Set<string>>(new Set());
+  const [batchList, setBatchList] = useState<BatchItem[]>([]);
+  const [batchesLoading, setBatchesLoading] = useState(true);
+  const [selectedBatchIds, setSelectedBatchIds] = useState<Set<string>>(new Set());
 
   // ── Scope (step 2) ──────────────────────────────────────────────────────────
   const [subjectId, setSubjectId] = useState("");
@@ -391,10 +392,10 @@ export default function TestEnginePage() {
     api.get<{ subjects: Subject[] }>("/tenant/subjects", { tenant: tenant.slug })
       .then((d) => setSubjects(d.subjects))
       .catch((err) => setPageError(err instanceof Error ? err.message : "Failed to load subjects"));
-    api.get<{ classes: ClassItem[] }>("/tenant/classes", { tenant: tenant.slug })
-      .then((d) => setClassList(d.classes))
-      .catch(() => setClassList([]))
-      .finally(() => setClassesLoading(false));
+    api.get<{ classes: BatchItem[] }>("/tenant/classes", { tenant: tenant.slug })
+      .then((d) => setBatchList(d.classes))
+      .catch(() => setBatchList([]))
+      .finally(() => setBatchesLoading(false));
     refreshDrafts();
   }, [tenant, refreshDrafts]);
 
@@ -470,7 +471,7 @@ export default function TestEnginePage() {
   }
 
   // Step 1 — a paper must be *for* someone, and drawn from *something*.
-  const canContinueClass = selectedClassIds.size > 0 && !!subjectId;
+  const canContinueBatch = selectedBatchIds.size > 0 && !!subjectId;
 
   // Step 2 — the chapter scope must match the chosen scope type.
   const canContinueScope =
@@ -481,7 +482,7 @@ export default function TestEnginePage() {
         ? checked.size === 1
         : checked.size >= 1);
 
-  const canGenerate = canContinueClass && canContinueScope && typeTotal > 0 && pctTotal > 0 && !generating;
+  const canGenerate = canContinueBatch && canContinueScope && typeTotal > 0 && pctTotal > 0 && !generating;
 
   // ── Load chapters when subject changes ────────────────────────────────────────
 
@@ -533,10 +534,10 @@ export default function TestEnginePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant, subjectId, scopeType, checkedKey, verifiedOnly]);
 
-  // ── Class actions ─────────────────────────────────────────────────────────────
+  // ── Batch actions ─────────────────────────────────────────────────────────────
 
-  function toggleClass(id: string) {
-    setSelectedClassIds((prev) => {
+  function toggleBatch(id: string) {
+    setSelectedBatchIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
@@ -570,14 +571,14 @@ export default function TestEnginePage() {
   // well so the unmount/tab-close save reads today's values rather than the ones
   // captured when the effect was registered.
   const snapshot = useCallback((): WizardState => ({
-    classIds: [...selectedClassIds],
+    classIds: [...selectedBatchIds],
     subjectId: subjectId || undefined,
     scopeType,
     chapterIds: [...checked],
     typeCounts,
     difficultyPct: diffPct,
     verifiedOnly,
-  }), [selectedClassIds, subjectId, scopeType, checked, typeCounts, diffPct, verifiedOnly]);
+  }), [selectedBatchIds, subjectId, scopeType, checked, typeCounts, diffPct, verifiedOnly]);
 
   const liveRef = useRef({ draftId, step, title, snapshot });
   liveRef.current = { draftId, step, title, snapshot };
@@ -663,7 +664,7 @@ export default function TestEnginePage() {
 
       setDraftId(full.id);
       setTitle(full.title === "Untitled paper" ? "" : full.title);
-      setSelectedClassIds(new Set(st.classIds ?? []));
+      setSelectedBatchIds(new Set(st.classIds ?? []));
       setScopeType(st.scopeType ?? "multi");
       setChecked(new Set(st.chapterIds ?? []));
       if (st.typeCounts) setTypeCounts(st.typeCounts);
@@ -740,7 +741,7 @@ export default function TestEnginePage() {
       // any questions the teacher wrote by hand.
       const body = {
         title: title.trim() || `Generated Test — ${new Date().toLocaleDateString()}`,
-        classIds: [...selectedClassIds],
+        classIds: [...selectedBatchIds],
         params,
       };
       const res = await api.post<{ exam: Exam; questions: Question[]; shortages: Shortage[] }>(
@@ -845,7 +846,7 @@ export default function TestEnginePage() {
   }
 
   // Finalize drops anything not kept and saves the paper as a draft. Publishing
-  // (with class assignment + scheduling) happens later on the exam page.
+  // (with batch assignment + scheduling) happens later on the exam page.
   async function handleFinalize() {
     if (!tenant || !exam) return;
     setBusy(true); setPageError("");
@@ -893,7 +894,7 @@ export default function TestEnginePage() {
     setExam(null); setQuestions([]); setShortages([]); setEditingQId(null);
     setFinalized(false); setSubmitted(false); setSubmitErr("");
     setStep(1); setFurthest(1); setDraftId(null); setSaveState("idle");
-    setTitle(""); setSelectedClassIds(new Set()); setChecked(new Set());
+    setTitle(""); setSelectedBatchIds(new Set()); setChecked(new Set());
     setSubjectId(""); setGroups([]); setAvail(null);
     refreshDrafts();
   }
@@ -929,8 +930,8 @@ export default function TestEnginePage() {
   const pendingCount = questions.filter((q) => q.draftStatus === "pending").length;
   const isDraft = exam?.status === "draft";
   const subjectName = subjects.find((s) => s.id === subjectId)?.name ?? "";
-  const assignedClassNames = classList
-    .filter((c) => selectedClassIds.has(c.id))
+  const assignedBatchNames = batchList
+    .filter((c) => selectedBatchIds.has(c.id))
     .map((c) => c.name)
     .join(", ");
   const visibleGroups = groups
@@ -1044,7 +1045,7 @@ export default function TestEnginePage() {
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 14 }}>
               {[
-                { n: 1, t: "Class & subject", d: "Pick the class (or classes) the paper is for, and the subject it draws from. A draft is created the moment you start — close the tab whenever you like." },
+                { n: 1, t: "Batch & subject", d: "Pick the batch (or batches) the paper is for, and the subject it draws from. A draft is created the moment you start — close the tab whenever you like." },
                 { n: 2, t: "Select scope", d: "Pick a scope type, then tick the chapters to draw from." },
                 { n: 3, t: "Set distribution", d: "Decide how many questions per type and the easy/moderate/hard split. Live availability tells you what the bank can fill." },
                 { n: 4, t: "Review & submit", d: "Curate the drafted questions, finalize, then submit for review. Only at that point does your admin see the paper — until then the draft is yours alone." },
@@ -1070,37 +1071,30 @@ export default function TestEnginePage() {
 
       {started && <Stepper current={step} furthest={furthest} onGo={goToStep} />}
 
-      {/* ── Step 1: Class & subject ───────────────────────────────────────── */}
+      {/* ── Step 1: Batch & subject ───────────────────────────────────────── */}
       {started && step === 1 && (
         <div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: 20, alignItems: "start" }}>
-            {/* Class picker */}
+            {/* Batch picker */}
             <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 14 }}>
               <div>
                 <div style={lblStyle}>Who is this paper for?</div>
                 <p style={{ margin: "6px 0 0", fontSize: 13, color: "var(--text-muted)" }}>
-                  Pick at least one class. Every student enrolled in it gets the exam once your admin approves and schedules it.
+                  Pick at least one batch. Every student enrolled in it gets the exam once your admin approves and schedules it.
                 </p>
               </div>
 
-              {classesLoading ? (
-                <div style={{ padding: "28px 8px", textAlign: "center", fontSize: 13.5, color: "var(--text-muted)" }}>Loading classes…</div>
-              ) : classList.length === 0 ? (
+              {batchesLoading ? (
+                <div style={{ padding: "28px 8px", textAlign: "center", fontSize: 13.5, color: "var(--text-muted)" }}>Loading batches…</div>
+              ) : batchList.length === 0 ? (
                 <div style={{ padding: "24px 8px", textAlign: "center", fontSize: 13.5, color: "var(--text-muted)" }}>
-                  You have no classes yet.{" "}
-                  <button
-                    type="button"
-                    onClick={() => router.push("/coaching/classes")}
-                    style={{ background: "none", border: "none", padding: 0, color: "var(--accent)", fontWeight: 600, cursor: "pointer" }}
-                  >
-                    Create a class
-                  </button>{" "}
-                  first — a paper has to be assigned to one before it can go for review.
+                  You aren&apos;t assigned to any batches yet. Ask your coaching owner to assign
+                  you to one — a paper has to be assigned to a batch before it can go for review.
                 </div>
               ) : (
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", gap: 10 }}>
-                  {classList.map((c) => {
-                    const on = selectedClassIds.has(c.id);
+                  {batchList.map((c) => {
+                    const on = selectedBatchIds.has(c.id);
                     return (
                       <label
                         key={c.id}
@@ -1114,7 +1108,7 @@ export default function TestEnginePage() {
                         <input
                           type="checkbox"
                           checked={on}
-                          onChange={() => toggleClass(c.id)}
+                          onChange={() => toggleBatch(c.id)}
                           style={{ accentColor: "var(--accent)", width: 15, height: 15, flexShrink: 0 }}
                         />
                         <span style={{ flex: 1, minWidth: 0 }}>
@@ -1161,16 +1155,16 @@ export default function TestEnginePage() {
 
           {/* Summary bar */}
           <div style={{ display: "flex", alignItems: "center", marginTop: 20, padding: "16px 20px", background: "var(--surface-card)", border: "1px solid var(--border-light)", borderRadius: 12, gap: 14 }}>
-            <Icon name={canContinueClass ? "check-circle" : "sparkles"} size={18} style={{ color: canContinueClass ? "var(--success)" : "var(--warning)", flexShrink: 0 }} />
+            <Icon name={canContinueBatch ? "check-circle" : "sparkles"} size={18} style={{ color: canContinueBatch ? "var(--success)" : "var(--warning)", flexShrink: 0 }} />
             <span style={{ fontSize: 14, color: "var(--text-heading)", flex: 1 }}>
-              {selectedClassIds.size === 0
-                ? "Select the class this paper is for."
+              {selectedBatchIds.size === 0
+                ? "Select the batch this paper is for."
                 : !subjectId
-                  ? <><strong>{selectedClassIds.size} class{selectedClassIds.size > 1 ? "es" : ""} selected</strong> · now pick a subject.</>
-                  : <><strong>{selectedClassIds.size} class{selectedClassIds.size > 1 ? "es" : ""}</strong> · {subjectName}</>}
+                  ? <><strong>{selectedBatchIds.size} batch{selectedBatchIds.size > 1 ? "es" : ""} selected</strong> · now pick a subject.</>
+                  : <><strong>{selectedBatchIds.size} batch{selectedBatchIds.size > 1 ? "es" : ""}</strong> · {subjectName}</>}
             </span>
             <Button variant="secondary" onClick={() => resetToLanding()}>← All drafts</Button>
-            <Button variant="app" disabled={!canContinueClass} onClick={() => goToStep(2)}>Continue to Scope →</Button>
+            <Button variant="app" disabled={!canContinueBatch} onClick={() => goToStep(2)}>Continue to Scope →</Button>
           </div>
         </div>
       )}
@@ -1196,14 +1190,14 @@ export default function TestEnginePage() {
               <div style={{ marginTop: 4, padding: "11px 13px", borderRadius: 10, background: "var(--surface-inset)", display: "flex", flexDirection: "column", gap: 4 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".07em", textTransform: "uppercase", color: "var(--text-muted)" }}>Paper for</span>
                 <span style={{ fontSize: 13, color: "var(--text-heading)", fontWeight: 600 }}>
-                  {classList.filter((c) => selectedClassIds.has(c.id)).map((c) => c.name).join(", ") || "—"}
+                  {batchList.filter((c) => selectedBatchIds.has(c.id)).map((c) => c.name).join(", ") || "—"}
                 </span>
                 <button
                   type="button"
                   onClick={() => goToStep(1)}
                   style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, fontSize: 12, color: "var(--accent)", fontWeight: 600, cursor: "pointer" }}
                 >
-                  Change class
+                  Change batch
                 </button>
               </div>
             </div>
@@ -1287,7 +1281,7 @@ export default function TestEnginePage() {
                 </>
               )}
             </span>
-            <Button variant="secondary" onClick={() => goToStep(1)}>← Class &amp; Subject</Button>
+            <Button variant="secondary" onClick={() => goToStep(1)}>← Batch &amp; Subject</Button>
             <Button variant="app" disabled={!canContinueScope} onClick={() => goToStep(3)}>Continue to Distribution →</Button>
           </div>
         </div>
@@ -1433,7 +1427,7 @@ export default function TestEnginePage() {
               <div style={{ fontFamily: "var(--font-sans)", fontSize: 18, fontWeight: 700, color: "var(--text-heading)" }}>{exam.title}</div>
               <div style={{ fontSize: 12.5, color: "var(--text-muted)", marginTop: 2 }}>
                 {examStatusLabel(exam.status as ExamStatus)}
-                {assignedClassNames && <> · for {assignedClassNames}</>}
+                {assignedBatchNames && <> · for {assignedBatchNames}</>}
               </div>
             </div>
             {[["Questions", liveQuestions.length], ["Marks", exam.totalMarks], ["~Minutes", exam.estimatedDurationMins ?? exam.durationMins]].map(([l, n]) => (
@@ -1469,7 +1463,7 @@ export default function TestEnginePage() {
                         {q.difficulty && <Badge tone={DIFF_TONE[q.difficulty] ?? "neutral"} style={{ fontSize: 10 }}>{q.difficulty}</Badge>}
                         {q.draftStatus && <Badge tone={q.draftStatus === "kept" ? "success" : q.draftStatus === "discarded" ? "danger" : "warning"} style={{ fontSize: 10 }}>{q.draftStatus}</Badge>}
                       </div>
-                      <p style={{ fontSize: 13.5, color: "var(--text-heading)", margin: 0, lineHeight: 1.5 }}>{q.body}</p>
+                      <MathText text={q.body} style={{ display: "block", fontSize: 13.5, color: "var(--text-heading)", lineHeight: 1.5 }} />
                     </div>
                     {isDraft && (
                       discarded ? (
@@ -1537,7 +1531,7 @@ export default function TestEnginePage() {
             </div>
           )}
 
-          {/* Finalize → draft → submit for review. The class was chosen in step 1,
+          {/* Finalize → draft → submit for review. The batch was chosen in step 1,
               so the whole flow ends here rather than on the exam page. */}
           <div className="gv-card" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <Button variant="ghost" size="sm" onClick={() => goToStep(3)}>← Back to Distribution</Button>
@@ -1555,7 +1549,7 @@ export default function TestEnginePage() {
               <>
                 {submitErr && <span style={{ fontSize: 13, color: "var(--danger)" }}>{submitErr}</span>}
                 <span style={{ fontSize: 13, color: "var(--text-muted)" }}>
-                  Saved to drafts{assignedClassNames && <> for <strong style={{ color: "var(--text-heading)" }}>{assignedClassNames}</strong></>}. Submitting locks the paper for editing.
+                  Saved to drafts{assignedBatchNames && <> for <strong style={{ color: "var(--text-heading)" }}>{assignedBatchNames}</strong></>}. Submitting locks the paper for editing.
                 </span>
                 <Button variant="secondary" onClick={() => router.push(`/coaching/exams/${exam.id}`)}>Go to exam</Button>
                 <Button variant="app" disabled={busy} onClick={handleSubmitForReview}>

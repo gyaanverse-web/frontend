@@ -1,4 +1,5 @@
 import type { IconName } from "@/components/ui";
+import { NO_BILLING, type Entitlements } from "@/lib/entitlements";
 
 /**
  * Pure, framework-free source of truth for the app's left-navigation.
@@ -10,7 +11,7 @@ import type { IconName } from "@/components/ui";
 export type AppNavKey =
   | "dashboard"
   | "home"
-  | "classes"
+  | "batches"
   | "exams"
   | "approvals"
   | "results"
@@ -20,6 +21,7 @@ export type AppNavKey =
   | "test-engine"
   | "subjects"
   | "teachers"
+  | "fees"
   | "members"
   | "invites"
   | "plan"
@@ -72,8 +74,8 @@ export function resolveDisplayRole(
  *
  *  - membership role present → it decides, because it is what the server
  *    authorises on;
- *  - a non-default account role ('super_admin', or staff whose membership is
- *    still loading elsewhere) is staff;
+ *  - a non-default account role (in practice, only 'super_admin' — it is
+ *    platform-level and never a coaching-scoped value) is staff;
  *  - otherwise the signup intent decides. This is the pre-tenant case: a
  *    coaching owner between "verified my email" and "named my institute" has no
  *    membership and the default 'student' account role, and without the intent
@@ -89,7 +91,26 @@ export function belongsToStudentArea(
   return signupIntent !== "coaching_owner";
 }
 
-/** Build the role-aware nav. The list is identical on every page for a given role. */
+/**
+ * Default landing path for a membership with this role — the same answer
+ * `belongsToStudentArea` gives once a membership role is known, expressed as a
+ * destination rather than a boolean. Used when switching straight to a
+ * specific coaching (the tenant switcher, the login-time chooser) so a
+ * student membership skips the `/coaching/dashboard` → `/student` bounce that
+ * page does for anyone reaching it as a student.
+ */
+export function landingPathForRole(role: string): string {
+  return role === "student" ? "/student" : "/coaching/dashboard";
+}
+
+/**
+ * Build the role-aware nav. The list is identical on every page for a given role.
+ *
+ * Takes no entitlements any more: nothing in the sidebar is gated on billing
+ * since "Plan & Billing" stopped being a nav row and became a tab inside
+ * Settings. That rule did not disappear — it moved to `buildSettingsTabs` below,
+ * which is where it is now tested.
+ */
 export function buildAppNav(role: string): NavEntry[] {
   const isOwner = role === "coaching_owner";
   const canMembers = isOwner || role === "teacher";
@@ -102,17 +123,16 @@ export function buildAppNav(role: string): NavEntry[] {
       { key: "home", label: "Home", icon: "layout-dashboard", href: "/student" },
       { key: "exams", label: "My Exams", icon: "file-text", href: "/student/exams" },
       { key: "results", label: "My Results", icon: "chart-column", href: "/student/results" },
-      { key: "classes", label: "My Classes", icon: "graduation-cap", href: "/student/classes" },
+      { key: "batches", label: "My Batches", icon: "graduation-cap", href: "/student/batches" },
+      { key: "fees", label: "My Fees", icon: "wallet", href: "/student/fees" },
       { key: "marketplace", label: "Marketplace", icon: "store", href: "/student/marketplace" },
-      { section: "Account" },
-      { key: "account", label: "Account", icon: "settings", href: "/account" },
     ];
   }
 
   const nav: NavEntry[] = [
     { key: "dashboard", label: "Dashboard", icon: "layout-dashboard", href: "/coaching/dashboard" },
-    // Owner sees every teacher's batch, so it's just "Classes"; a teacher sees only their own → "My Classes".
-    { key: "classes", label: isOwner ? "Classes" : "My Classes", icon: "graduation-cap", href: "/coaching/classes" },
+    // Owner runs every batch, so it's just "Batches"; a teacher sees only the batches assigned to them → "My Batches".
+    { key: "batches", label: isOwner ? "Batches" : "My Batches", icon: "graduation-cap", href: "/coaching/batches" },
     { section: "Assessments" },
     { key: "exams", label: "Exams", icon: "file-text", href: "/coaching/exams" },
     // Owner-only approval + live-monitor hub, sits right under Exams.
@@ -126,19 +146,88 @@ export function buildAppNav(role: string): NavEntry[] {
     // lists the signed-in user's own, so staff only ever saw "You haven't taken any
     // exams yet". Staff analysis is per-exam — the reports panel on
     // /coaching/exams/:id — and is reached by opening the exam, not the sidebar.
+    // Owner-only: every /tenant/fees/* catalogue/settings route requires the
+    // coaching_owner membership role, so a teacher here would see a menu that
+    // 403s on every request behind it.
+    ...(isOwner ? [{ section: "Finance" }, { key: "fees" as const, label: "Fees", icon: "wallet" as const, href: "/coaching/fees" }] : []),
     { section: "Manage" },
     { key: "members", label: "Members", icon: "users", href: dash("Members") },
   ];
 
   if (isOwner) {
     // Owner-only: teachers roster + workload lives at its own route.
-    nav.push({ key: "teachers", label: "Teachers", icon: "users", href: "/coaching/teachers" });
+    nav.push({ key: "teachers", label: "Teachers", icon: "user-check", href: "/coaching/teachers" });
     nav.push({ key: "invites", label: "Invites & Codes", icon: "plus", href: dash("Invites / Join Codes") });
-    nav.push({ key: "plan", label: "Plan & Billing", icon: "wallet", href: dash("Plan & Billing") });
     nav.push({ section: "Institute" });
-    nav.push({ key: "settings", label: "Settings", icon: "settings", href: dash("Settings") });
-    nav.push({ key: "danger", label: "Danger Zone", icon: "bell", href: dash("Danger Zone") });
+    // `building`, not `settings` — this row is the INSTITUTE, and the gear
+    // belongs to the personal Account entry in the sidebar footer.
+    //
+    // ONE row, not three. "Plan & Billing" and "Danger Zone" used to sit beside
+    // it as their own destinations; both are now TABS inside this screen. Neither
+    // is a daily navigation target, and "delete my whole institute" one mis-click
+    // from "Settings" in the permanent menu is a hazard, not a convenience.
+    // Billing is still gated on `entitlements.billingEnabled` — the tab simply
+    // does not render while the platform billing switch is off — which is why
+    // this function no longer needs to branch on it here.
+    nav.push({ key: "settings", label: "Settings", icon: "building", href: dash("Settings") });
   }
 
   return nav;
+}
+
+/**
+ * Everything below the divider at the bottom of the sidebar.
+ *
+ * Not part of `buildAppNav` because it is not navigation between areas of the
+ * institute — it is the "this is ME" block that every SaaS shell pins to the
+ * bottom: who is signed in, their account, and the way out. `AppSidebar` renders
+ * it after a spacer, identical for every role.
+ *
+ * Kept here rather than inline in the component for the same reason as the rest
+ * of this module: it is a plain data structure a Node test can assert on.
+ */
+export const ACCOUNT_ENTRY = {
+  key: "account",
+  label: "Account",
+  icon: "settings",
+  href: "/account",
+} as const satisfies Extract<NavEntry, { key: AppNavKey }>;
+
+/** The tabs on `?screen=Settings`, in render order. */
+export type SettingsTabKey = "general" | "billing" | "danger";
+
+export const SETTINGS_TAB_LABEL: Record<SettingsTabKey, string> = {
+  general: "General",
+  billing: "Billing",
+  danger: "Danger Zone",
+};
+
+/**
+ * Which tabs the institute Settings screen shows.
+ *
+ * Two independent conditions gate "billing", both required, and this is the only
+ * place either is expressed:
+ *
+ *  - **Owner only.** Plan pricing is the owner's business; a teacher cannot even
+ *    open this screen (`OWNER_ONLY_SCREENS` on the dashboard, and a 403 behind
+ *    every call the tab would make).
+ *  - **Billing actually live.** Gated on `billingEnabled` rather than on the plan
+ *    name, because while the platform switch is off every coaching resolves to an
+ *    unmetered plan — so the plan name tells you nothing about whether the
+ *    product exists yet. With it off the tab is absent, not disabled: every
+ *    request behind it 404s, so it would render as a broken screen rather than an
+ *    upsell.
+ *
+ * `entitlements` is optional so this stays callable from a plain Node test and
+ * from a caller whose session has not resolved; omitting it gives the
+ * billing-off answer, which is what the server says today.
+ */
+export function buildSettingsTabs(
+  role: string,
+  entitlements: Entitlements = NO_BILLING,
+): SettingsTabKey[] {
+  if (role !== "coaching_owner") return [];
+  return entitlements.billingEnabled
+    ? ["general", "billing", "danger"]
+    : ["general", "danger"];
 }

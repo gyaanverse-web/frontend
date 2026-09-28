@@ -332,7 +332,7 @@ export default function JoinByCodePage() {
       ) : (
         <>
           <p style={{ fontSize: 14, color: "var(--text-body)", margin: "0 0 20px", lineHeight: 1.6 }}>
-            Sign in to join — or create an account if you&apos;re new to Gyanverse. We&apos;ll bring
+            Sign in to join — or create an account if you&apos;re new to Gyaanverse. We&apos;ll bring
             you straight back here.
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

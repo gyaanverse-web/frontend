@@ -244,7 +244,7 @@ function ExamsHubInner() {
     { key: "visibility", label: "Visibility", width: "15%", render: (e) => <span style={{ fontSize: 13, color: "var(--text-body)", whiteSpace: "nowrap" }}>{VISIBILITY_LABEL[e.visibility]}</span> },
     { key: "marks", label: "Marks", width: "8%", render: (e) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{e.totalMarks}</span> },
     // No per-row "Manage" button: the whole row navigates to the exam, the same
-    // way a class card does on /classes. This column is just the affordance.
+    // way a batch card does on /batches. This column is just the affordance.
     {
       key: "act",
       label: "",

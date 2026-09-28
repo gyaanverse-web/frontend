@@ -1,9 +1,11 @@
 "use client";
 
 import { api, ApiError, setUnauthorizedHandler } from "./api";
+import { setActiveTenantSlug } from "./activeTenant";
 // Types only — erased at compile time, so this is not a runtime import cycle
 // even though useTenantSession imports the functions below.
 import type { SessionUser, TenantBase, TenantRole } from "./useTenantSession";
+import type { Entitlements } from "./entitlements";
 
 /**
  * One shared answer to "who is signed in, and to which coaching?".
@@ -49,6 +51,18 @@ export interface SessionPayload {
 export interface TenantPayload<T extends TenantBase = TenantBase> {
   tenant: T;
   membershipRole: TenantRole;
+  /**
+   * Optional so a frontend deploy that lands ahead of the API's still renders —
+   * callers fall back to `NO_BILLING`. Once both are out it is always present.
+   */
+  entitlements?: Entitlements;
+  /**
+   * Every coaching the signed-in user belongs to, oldest first — the data
+   * behind the coaching switcher. Always sent by the API regardless of which
+   * host answered; optional here only so a frontend deploy that lands ahead of
+   * the API still renders. See `useMemberships` in `useTenantSession.ts`.
+   */
+  memberships?: Array<{ tenant: TenantBase; membershipRole: TenantRole }>;
 }
 
 type Settled = { ok: true; value: unknown } | { ok: false; error: unknown };
@@ -120,11 +134,27 @@ export function getSession(): Promise<SessionPayload> {
   );
 }
 
-/** The caller's coaching and their role in it. **Rejects with a 404 ApiError**
- *  when they belong to none — callers branch on that, so it is not an error. */
+/** The coaching this host is on and the caller's role in it (on the app host,
+ *  their oldest membership). **Rejects with a 404 ApiError** when they belong to
+ *  none, and a **403** on a coaching subdomain they don't belong to while
+ *  belonging to another — callers branch on both, so neither is an error. */
 export function getTenant<T extends TenantBase = TenantBase>(): Promise<TenantPayload<T>> {
   return cachedGet(TENANT_KEY, TENANT_TTL_MS, () =>
-    api.get<TenantPayload<T>>("/tenants/me"),
+    api.get<TenantPayload<T>>("/tenants/me").then(
+      (payload) => {
+        // Publish the slug so tenant-scoped calls work on a host that doesn't
+        // name one (app host, apex, localhost) — see lib/activeTenant.
+        setActiveTenantSlug(payload.tenant?.slug ?? null);
+        return payload;
+      },
+      (error: unknown) => {
+        // A durable answer — no coaching (404), not this one (403), signed out
+        // (401) — retires the slug. A transient 5xx says nothing about the
+        // membership, so the last known slug stands.
+        if (isDurableFailure(error)) setActiveTenantSlug(null);
+        throw error;
+      },
+    ),
   );
 }
 
@@ -140,6 +170,10 @@ export function getTenant<T extends TenantBase = TenantBase>(): Promise<TenantPa
 export function invalidateSession(): void {
   cache.clear();
   inflight.clear();
+  // The resolved slug is an answer about the membership like any other, so it
+  // goes too — a stale one outliving a sign-out would be attached to the next
+  // user's requests. The next `getTenant` republishes it.
+  setActiveTenantSlug(null);
   subscribers.forEach((fn) => fn());
 }
 

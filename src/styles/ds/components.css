@@ -1,4 +1,4 @@
-/* ── Gyanverse · Component classes ───────────────────────────────────
+/* ── Gyaanverse · Component classes ───────────────────────────────────
    Thin class layer consumed by the React components (and usable raw). */
 
 /* Buttons — always pills */
@@ -198,6 +198,11 @@
               transform var(--duration-fast) var(--ease-out);
 }
 .gv-table tbody tr:hover .gv-row-chevron { color: var(--accent); opacity: 1; transform: translateX(3px); }
+
+/* Fee student ledger: tables left, plans + guardians right; stacks on narrow screens. */
+@media (max-width: 1080px) {
+  .gv-fee-ledger-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
 
 /* Live badge — a breathing pill for an exam currently running in its window */
 .gv-live-badge {

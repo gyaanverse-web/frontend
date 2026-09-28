@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { buildTenantUrl } from "@/lib/tenantUrl";
 import { Badge } from "@/components/ui";
 import type { BadgeTone } from "@/components/ui";
 import type { Invite, Tenant } from "../types";
@@ -63,7 +64,7 @@ export function InvitesSection({ tenant }: Props) {
           ? `Invitation emailed to ${sentContact}. It expires in 48 hours.`
           : "Invite created — but SMS delivery isn't automated yet, so send this link to the teacher yourself. It expires in 48 hours.",
       );
-      setSentLink(`${window.location.origin}/accept-invite?token=${res.invite.token}`);
+      setSentLink(buildTenantUrl(tenant.slug, `/accept-invite?token=${res.invite.token}`));
       load();
     } catch (err) {
       setSendErr(err instanceof Error ? err.message : "Failed to send invite");

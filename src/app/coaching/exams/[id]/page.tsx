@@ -7,9 +7,10 @@ import { api } from "@/lib/api";
 import { useTenantSession } from "@/lib/useTenantSession";
 import { useUrlState } from "@/lib/useUrlState";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
-import { Button, Badge, DataTable, Tabs, Icon, Modal } from "@/components/ui";
+import { Button, Badge, DataTable, Tabs, Icon, Modal, DetailRows } from "@/components/ui";
 import type { Column, BadgeTone } from "@/components/ui";
 import { StatusBadge, StatusTimeline, ExamReportsPanel } from "@/components/exam";
+import { MathText } from "@/components/Math";
 import type { ExamStatusHistoryRow } from "@/components/exam";
 import {
   type ExamStatus,
@@ -95,13 +96,13 @@ type Question = {
   createdAt: string;
 };
 
-type ExamClass = {
+type ExamBatch = {
   id: string;
   examId: string;
   classId: string;
 };
 
-type ClassItem = {
+type BatchItem = {
   id: string;
   name: string;
   grade: string | null;
@@ -127,8 +128,9 @@ type ExamSession = {
   attemptNumber: number;
   status: string;
   autoScore: number | null;
+  manualScore: number | null;
   totalMarks: number;
-  createdAt: string;
+  startedAt: string;
 };
 
 // `GET /tenant/exams/:id/evaluation-progress`. `pending` is exactly what the
@@ -136,7 +138,7 @@ type ExamSession = {
 //
 // There is no failure information here and there is not meant to be. Evaluation
 // retries itself indefinitely, and the single case it cannot finish is settled
-// by a Gyanverse operator — so nothing a teacher could see would be anything a
+// by a Gyaanverse operator — so nothing a teacher could see would be anything a
 // teacher could act on.
 type EvalProgress = {
   examId: string;
@@ -149,7 +151,7 @@ type EvalProgress = {
     abandoned: number;
   };
   pending: number;
-  // Answers the AI pipeline handed to Gyanverse for a manual read. The teacher
+  // Answers the AI pipeline handed to Gyaanverse for a manual read. The teacher
   // can do nothing about these and is never asked to — the only thing this
   // number does on screen is explain a held publish button. Never render it as
   // an error, and never surface which student or question it belongs to.
@@ -179,11 +181,6 @@ const btnS: CSSProperties = {
 const cell: CSSProperties = {
   padding: "11px 16px", borderBottom: "1px solid var(--border-default)",
   fontFamily: "var(--font-body)", fontSize: 14, color: "var(--text-heading)", verticalAlign: "middle",
-};
-
-const lc: CSSProperties = {
-  ...cell, fontWeight: 600, whiteSpace: "nowrap", width: 140,
-  background: "var(--bg-section-alt)", color: "var(--text-body)",
 };
 
 const cardStyle: CSSProperties = {
@@ -616,10 +613,10 @@ function ExamDetailInner() {
   const [editQLoading, setEditQLoading]   = useState(false);
   const [editQErr, setEditQErr]           = useState("");
 
-  // class linking
-  const [linkedClasses, setLinkedClasses] = useState<ExamClass[]>([]);
-  const [allClasses, setAllClasses]       = useState<ClassItem[]>([]);
-  const [linkClassId, setLinkClassId]     = useState("");
+  // batch linking
+  const [linkedBatches, setLinkedBatches] = useState<ExamBatch[]>([]);
+  const [allBatches, setAllBatches]       = useState<BatchItem[]>([]);
+  const [linkBatchId, setLinkBatchId]     = useState("");
   const [linkLoading, setLinkLoading]     = useState(false);
   const [linkErr, setLinkErr]             = useState("");
   const [confirmUnlinkId, setConfirmUnlinkId] = useState<string | null>(null);
@@ -661,10 +658,10 @@ function ExamDetailInner() {
     }
   }, [examId]);
 
-  const loadLinkedClasses = useCallback(async (slug: string) => {
+  const loadLinkedBatches = useCallback(async (slug: string) => {
     try {
-      const data = await api.get<{ classes: ExamClass[] }>(`/tenant/exams/${examId}/classes`, { tenant: slug });
-      setLinkedClasses(data.classes);
+      const data = await api.get<{ classes: ExamBatch[] }>(`/tenant/exams/${examId}/classes`, { tenant: slug });
+      setLinkedBatches(data.classes);
     } catch { /* non-critical */ }
   }, [examId]);
 
@@ -676,12 +673,12 @@ function ExamDetailInner() {
     (async () => {
       const examData = await loadExam(slug);
       if (cancelled) return;
-      loadLinkedClasses(slug);
+      loadLinkedBatches(slug);
 
-      // load classes for linking
+      // load batches for linking
       try {
-        const cd = await api.get<{ classes: ClassItem[] }>("/tenant/classes", { tenant: slug });
-        if (!cancelled) setAllClasses(cd.classes);
+        const cd = await api.get<{ classes: BatchItem[] }>("/tenant/classes", { tenant: slug });
+        if (!cancelled) setAllBatches(cd.classes);
       } catch { /* ok */ }
 
       // load subjects
@@ -702,7 +699,7 @@ function ExamDetailInner() {
     })();
 
     return () => { cancelled = true; };
-  }, [tenant, loadExam, loadLinkedClasses]);
+  }, [tenant, loadExam, loadLinkedBatches]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -829,13 +826,13 @@ function ExamDetailInner() {
     }
   }
 
-  // Open the Schedule modal — pre-fill classes with current links and times with
+  // Open the Schedule modal — pre-fill batches with current links and times with
   // any already-set window (so re-scheduling starts from what is there today).
   function openSchedule() {
     if (!exam) return;
     setAdminErr(""); setRemarks("");
     setSchedForm({
-      classIds: linkedClasses.map(lc => lc.classId),
+      classIds: linkedBatches.map(lc => lc.classId),
       scheduledAt: exam.scheduledAt ? exam.scheduledAt.slice(0, 16) : "",
       endsAt: exam.endsAt ? exam.endsAt.slice(0, 16) : "",
     });
@@ -845,10 +842,10 @@ function ExamDetailInner() {
   async function refreshAfterAdmin() {
     if (!tenant) return;
     await loadExam(tenant.slug);
-    loadLinkedClasses(tenant.slug);
+    loadLinkedBatches(tenant.slug);
   }
 
-  // Approval is a verdict on the paper, nothing more — no dates, no classes.
+  // Approval is a verdict on the paper, nothing more — no dates, no batches.
   // Scheduling is a separate decision the admin makes whenever a slot is free,
   // so this is a one-click action rather than a modal.
   async function handleApprove() {
@@ -1022,28 +1019,28 @@ function ExamDetailInner() {
     }
   }
 
-  async function handleLinkClass() {
-    if (!tenant || !exam || !linkClassId) return;
+  async function handleLinkBatch() {
+    if (!tenant || !exam || !linkBatchId) return;
     setLinkErr(""); setLinkLoading(true);
     try {
-      const res = await api.post<{ examClass: ExamClass }>(`/tenant/exams/${exam.id}/classes`, { classId: linkClassId }, { tenant: tenant.slug });
-      setLinkedClasses(prev => [...prev, res.examClass]);
-      setLinkClassId("");
+      const res = await api.post<{ examClass: ExamBatch }>(`/tenant/exams/${exam.id}/classes`, { classId: linkBatchId }, { tenant: tenant.slug });
+      setLinkedBatches(prev => [...prev, res.examClass]);
+      setLinkBatchId("");
     } catch (err) {
-      setLinkErr(err instanceof Error ? err.message : "Failed to link class");
+      setLinkErr(err instanceof Error ? err.message : "Failed to link batch");
     } finally {
       setLinkLoading(false);
     }
   }
 
-  async function handleUnlinkClass(classId: string) {
+  async function handleUnlinkBatch(batchId: string) {
     if (!tenant || !exam) return;
     setConfirmUnlinkId(null);
     try {
-      await api.delete(`/tenant/exams/${exam.id}/classes/${classId}`, { tenant: tenant.slug });
-      setLinkedClasses(prev => prev.filter(lc => lc.classId !== classId));
+      await api.delete(`/tenant/exams/${exam.id}/classes/${batchId}`, { tenant: tenant.slug });
+      setLinkedBatches(prev => prev.filter(lc => lc.classId !== batchId));
     } catch (err) {
-      setLinkErr(err instanceof Error ? err.message : "Failed to unlink class");
+      setLinkErr(err instanceof Error ? err.message : "Failed to unlink batch");
     }
   }
 
@@ -1125,7 +1122,7 @@ function ExamDetailInner() {
   // changes underneath us.
   // Also fetched in `ready_to_publish`, not just `under_evaluation`: that is
   // where `underReview` matters. An exam can be fully evaluated and still have
-  // an answer with Gyanverse, and the publish button has to know before the
+  // an answer with Gyaanverse, and the publish button has to know before the
   // teacher presses it and gets a 422 back.
   useEffect(() => {
     if (exam?.status !== "under_evaluation" && exam?.status !== "ready_to_publish") return;
@@ -1141,7 +1138,7 @@ function ExamDetailInner() {
   // retry was a teacher-facing failure — it could not exist without telling them
   // the AI had broken — and it is now redundant besides: BullMQ's ladder, the
   // reconciler and the backstop between them re-run everything that can be
-  // re-run. What they cannot finish goes to Gyanverse, and shows up above only
+  // re-run. What they cannot finish goes to Gyaanverse, and shows up above only
   // as `underReview`.
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -1169,7 +1166,7 @@ function ExamDetailInner() {
   // `canEdit`. See `canPublishResultsAsOwner`.
   const canEdit = role === "teacher" && exam.createdBy === user.id;
   const editable = canEdit && isExamEditable(exam.status);
-  const unlinkedClasses = allClasses.filter(c => !linkedClasses.some(lc => lc.classId === c.id));
+  const unlinkedBatches = allBatches.filter(c => !linkedBatches.some(lc => lc.classId === c.id));
 
   const tabs = ["Overview", "Questions"];
   if (exam.visibility === "private") tabs.push("Access");
@@ -1184,7 +1181,7 @@ function ExamDetailInner() {
   const activeTab = tabs.includes(tab) ? tab : "Overview";
 
   // The backstop's publish hold. `publishResults` refuses with a 422 while any
-  // answer on this paper is still with a Gyanverse operator, so the button is
+  // answer on this paper is still with a Gyaanverse operator, so the button is
   // disabled rather than letting the teacher press it and read an error — a
   // rejected click is a failure they experienced, which is the thing we are
   // avoiding, and this way the copy is ours rather than the API's.
@@ -1233,7 +1230,7 @@ function ExamDetailInner() {
         </Button>
       )}
       {/* The only place `underReview` is rendered. Neutral by design: it names
-          Gyanverse as the party doing the work and asks nothing of the teacher.
+          Gyaanverse as the party doing the work and asks nothing of the teacher.
           No error styling, no counts of what "failed", no retry — the whole
           point is that this reads as a step in the process, not a fault. */}
       {reviewHold && (
@@ -1246,7 +1243,7 @@ function ExamDetailInner() {
           }}
         >
           {evalProgress!.underReview === 1 ? "1 answer is" : `${evalProgress!.underReview} answers are`}{" "}
-          getting a final check from Gyanverse. Publishing unlocks automatically
+          getting a final check from Gyaanverse. Publishing unlocks automatically
           when that finishes — nothing for you to do.
         </span>
       )}
@@ -1295,15 +1292,21 @@ function ExamDetailInner() {
   );
 
   // ── Exam info / edit card ──────────────────────────────────────────────────
-  const infoCard = !editMode ? (
+  //
+  // One card, one row order, in both modes. Edit used to replace this whole card
+  // with a differently-shaped form carrying a different field set — the stat
+  // strip vanished, Duration went from a big number to a table input, and Price
+  // and Subject appeared out of nowhere. See `DetailRows`.
+  //
+  // The split now follows a rule instead of an accident: the strip holds facts
+  // *computed from* the paper, which nobody edits and which therefore look the
+  // same either way; every stored setting is a row, and rows grow controls.
+  const infoCard = (
     <div style={cardStyle}>
       <div style={{ padding: "18px 20px", display: "flex", gap: 28, flexWrap: "wrap" }}>
         {[
           ["Questions", exam.questions.length],
           ["Total marks", exam.totalMarks],
-          ["Duration", `${exam.durationMins} min`],
-          ["Max attempts", exam.maxAttempts],
-          ["Visibility", exam.visibility.replace("_", " ")],
           ...(exam.qualityScore != null ? [["Quality", `${exam.qualityScore}%`] as [string, string | number]] : []),
         ].map(([l, v]) => (
           <div key={l as string}>
@@ -1312,91 +1315,101 @@ function ExamDetailInner() {
           </div>
         ))}
       </div>
-      {(exam.description || exam.instructions || exam.scheduledAt || exam.endsAt || exam.gradeLevel) && (
-        <table style={{ width: "100%", borderCollapse: "collapse", borderTop: "1px solid var(--border-light)" }}>
-          <tbody>
-            {exam.gradeLevel && <tr><td style={lc}>Grade</td><td style={cell}>{exam.gradeLevel}</td></tr>}
-            {exam.description && <tr><td style={lc}>Description</td><td style={{ ...cell, whiteSpace: "pre-wrap" }}>{exam.description}</td></tr>}
-            {exam.instructions && <tr><td style={lc}>Instructions</td><td style={{ ...cell, whiteSpace: "pre-wrap" }}>{exam.instructions}</td></tr>}
-            {exam.scheduledAt && <tr><td style={lc}>Opens at</td><td style={cell}>{new Date(exam.scheduledAt).toLocaleString()}</td></tr>}
-            {exam.endsAt && <tr><td style={lc}>Closes at</td><td style={cell}>{new Date(exam.endsAt).toLocaleString()}</td></tr>}
-          </tbody>
-        </table>
-      )}
-    </div>
-  ) : (
-    <div style={cardStyle}>
-      <div style={{ padding: 20 }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <tbody>
-            {(["title", "durationMins", "maxAttempts", "gradeLevel", "price"] as const).map(field => (
-              <tr key={field}>
-                <td style={{ ...lc, background: "transparent" }}>
-                  {field === "durationMins" ? "Duration (mins)" : field === "maxAttempts" ? "Max attempts" : field === "gradeLevel" ? "Grade level" : field.charAt(0).toUpperCase() + field.slice(1)}
-                </td>
-                <td style={{ padding: "6px 0" }}>
-                  <input
-                    type={["durationMins", "maxAttempts"].includes(field) ? "number" : "text"}
-                    value={editForm[field]}
-                    onChange={e => setEditForm(f => ({ ...f, [field]: e.target.value }))}
-                    style={{ ...inp, width: "100%" }}
-                  />
-                </td>
-              </tr>
-            ))}
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Visibility</td>
-              <td style={{ padding: "6px 0" }}>
-                <select value={editForm.visibility} onChange={e => setEditForm(f => ({ ...f, visibility: e.target.value as Exam["visibility"] }))} style={{ ...inp, width: "100%" }}>
+
+      <div style={{ borderTop: "1px solid var(--border-light)" }}>
+        <DetailRows
+          editing={editMode}
+          labelWidth={170}
+          rows={[
+            {
+              label: "Title",
+              value: exam.title,
+              edit: <input className="gv-input" value={editForm.title} onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))} />,
+            },
+            {
+              label: "Duration",
+              value: `${exam.durationMins} min`,
+              edit: <input className="gv-input" type="number" value={editForm.durationMins} onChange={e => setEditForm(f => ({ ...f, durationMins: e.target.value }))} />,
+              help: editMode ? "Minutes." : undefined,
+            },
+            {
+              label: "Max attempts",
+              value: exam.maxAttempts,
+              edit: <input className="gv-input" type="number" value={editForm.maxAttempts} onChange={e => setEditForm(f => ({ ...f, maxAttempts: e.target.value }))} />,
+            },
+            {
+              label: "Visibility",
+              value: exam.visibility.replace("_", " "),
+              edit: (
+                <select className="gv-select" value={editForm.visibility} onChange={e => setEditForm(f => ({ ...f, visibility: e.target.value as Exam["visibility"] }))}>
                   <option value="private">Private</option>
                   <option value="public_free">Public Free</option>
                   <option value="public_paid">Public Paid</option>
                 </select>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Subject</td>
-              <td style={{ padding: "6px 0" }}>
-                <select value={editForm.subjectId} onChange={e => setEditForm(f => ({ ...f, subjectId: e.target.value }))} style={{ ...inp, width: "100%" }}>
+              ),
+            },
+            {
+              label: "Subject",
+              value: subjects.find(s => s.id === exam.subjectId)?.name ?? "—",
+              edit: (
+                <select className="gv-select" value={editForm.subjectId} onChange={e => setEditForm(f => ({ ...f, subjectId: e.target.value }))}>
                   <option value="">— None —</option>
                   {subjects.map(s => (
                     <option key={s.id} value={s.id}>{s.name}{s.gradeLevel ? ` (Grade ${s.gradeLevel})` : ""}</option>
                   ))}
                 </select>
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Description</td>
-              <td style={{ padding: "6px 0" }}>
-                <textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} rows={2} style={{ ...inp, width: "100%", resize: "vertical" }} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Instructions</td>
-              <td style={{ padding: "6px 0" }}>
-                <textarea value={editForm.instructions} onChange={e => setEditForm(f => ({ ...f, instructions: e.target.value }))} rows={3} style={{ ...inp, width: "100%", resize: "vertical" }} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Opens at</td>
-              <td style={{ padding: "6px 0" }}>
-                <input type="datetime-local" value={editForm.scheduledAt} onChange={e => setEditForm(f => ({ ...f, scheduledAt: e.target.value }))} style={inp} />
-              </td>
-            </tr>
-            <tr>
-              <td style={{ ...lc, background: "transparent" }}>Closes at</td>
-              <td style={{ padding: "6px 0" }}>
-                <input type="datetime-local" value={editForm.endsAt} onChange={e => setEditForm(f => ({ ...f, endsAt: e.target.value }))} style={inp} />
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        {editErr && <p style={{ margin: "10px 0 0", color: "var(--danger)", fontSize: 13 }}>{editErr}</p>}
-        <div style={{ marginTop: 14, display: "flex", gap: 10 }}>
-          <Button variant="app" disabled={editLoading} onClick={handleEditSave}>{editLoading ? "Saving…" : "Save changes"}</Button>
-          <Button variant="ghost" onClick={() => { setEditMode(false); setEditErr(""); }}>Cancel</Button>
-        </div>
+              ),
+            },
+            {
+              label: "Grade level",
+              value: exam.gradeLevel ?? "—",
+              hidden: !exam.gradeLevel,
+              edit: <input className="gv-input" value={editForm.gradeLevel} onChange={e => setEditForm(f => ({ ...f, gradeLevel: e.target.value }))} />,
+            },
+            {
+              label: "Price",
+              value: exam.price ?? "—",
+              hidden: !exam.price,
+              edit: <input className="gv-input" value={editForm.price} onChange={e => setEditForm(f => ({ ...f, price: e.target.value }))} />,
+              help: editMode ? "Only applies when visibility is Public Paid." : undefined,
+            },
+            {
+              label: "Description",
+              value: <span style={{ whiteSpace: "pre-wrap" }}>{exam.description}</span>,
+              hidden: !exam.description,
+              edit: <textarea className="gv-textarea" rows={2} value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} />,
+            },
+            {
+              label: "Instructions",
+              value: <span style={{ whiteSpace: "pre-wrap" }}>{exam.instructions}</span>,
+              hidden: !exam.instructions,
+              edit: <textarea className="gv-textarea" rows={3} value={editForm.instructions} onChange={e => setEditForm(f => ({ ...f, instructions: e.target.value }))} />,
+            },
+            {
+              label: "Opens at",
+              value: exam.scheduledAt ? new Date(exam.scheduledAt).toLocaleString() : "—",
+              hidden: !exam.scheduledAt,
+              edit: <input className="gv-input" type="datetime-local" value={editForm.scheduledAt} onChange={e => setEditForm(f => ({ ...f, scheduledAt: e.target.value }))} />,
+            },
+            {
+              label: "Closes at",
+              value: exam.endsAt ? new Date(exam.endsAt).toLocaleString() : "—",
+              hidden: !exam.endsAt,
+              edit: <input className="gv-input" type="datetime-local" value={editForm.endsAt} onChange={e => setEditForm(f => ({ ...f, endsAt: e.target.value }))} />,
+            },
+          ]}
+        />
       </div>
+
+      {editMode && (
+        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border-default)" }}>
+          {editErr && <p style={{ margin: "0 0 10px", color: "var(--danger)", fontSize: 13 }}>{editErr}</p>}
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button variant="app" disabled={editLoading} onClick={handleEditSave}>{editLoading ? "Saving…" : "Save changes"}</Button>
+            <Button variant="ghost" onClick={() => { setEditMode(false); setEditErr(""); }}>Cancel</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -1623,7 +1636,7 @@ function ExamDetailInner() {
                       <span style={{ fontSize: 12, color: "var(--text-muted)" }}>{q.marks} marks{q.negativeMarks > 0 ? ` · −${q.negativeMarks}` : ""}</span>
                       {q.explanation && <span style={{ fontSize: 12, color: "var(--success)", display: "inline-flex", alignItems: "center", gap: 3 }}><Icon name="check-circle" size={12} /> Explanation</span>}
                     </div>
-                    <p style={{ margin: 0, fontSize: 14, lineHeight: 1.45, color: "var(--text-heading)" }}>{q.body}</p>
+                    <MathText text={q.body} style={{ display: "block", fontSize: 14, lineHeight: 1.45, color: "var(--text-heading)" }} />
                   </div>
                   {editable && (
                     <div style={{ display: "flex", gap: 4, alignItems: "center", flexShrink: 0 }}>
@@ -1656,35 +1669,35 @@ function ExamDetailInner() {
   // ── Access panel (private exams) ────────────────────────────────────────────
   const accessPanel = (
     <div>
-      {editable && unlinkedClasses.length > 0 && (
+      {editable && unlinkedBatches.length > 0 && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
-          <select value={linkClassId} onChange={e => setLinkClassId(e.target.value)} style={{ ...inp, minWidth: 240 }}>
-            <option value="">— select a class —</option>
-            {unlinkedClasses.map(c => <option key={c.id} value={c.id}>{c.name}{c.grade ? ` (${c.grade})` : ""}</option>)}
+          <select value={linkBatchId} onChange={e => setLinkBatchId(e.target.value)} style={{ ...inp, minWidth: 240 }}>
+            <option value="">— select a batch —</option>
+            {unlinkedBatches.map(c => <option key={c.id} value={c.id}>{c.name}{c.grade ? ` (${c.grade})` : ""}</option>)}
           </select>
-          <Button variant="app" disabled={linkLoading || !linkClassId} onClick={handleLinkClass}>{linkLoading ? "Linking…" : "Link class"}</Button>
+          <Button variant="app" disabled={linkLoading || !linkBatchId} onClick={handleLinkBatch}>{linkLoading ? "Linking…" : "Link batch"}</Button>
         </div>
       )}
       {linkErr && <p style={{ margin: "0 0 10px", color: "var(--danger)", fontSize: 12 }}>{linkErr}</p>}
-      {linkedClasses.length === 0 ? (
+      {linkedBatches.length === 0 ? (
         <div className="gv-card" style={{ padding: 28, textAlign: "center", color: "var(--text-muted)", fontSize: 14 }}>
-          No classes linked. Students in linked classes can take this exam.
+          No batches linked. Students in linked batches can take this exam.
         </div>
       ) : (
         <div className="gv-card" style={{ padding: 0, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <tbody>
-              {linkedClasses.map(lc => {
-                const cls = allClasses.find(c => c.id === lc.classId);
+              {linkedBatches.map(lc => {
+                const batch = allBatches.find(c => c.id === lc.classId);
                 return (
                   <tr key={lc.id}>
-                    <td style={cell}>{cls?.name ?? lc.classId}</td>
-                    <td style={{ ...cell, color: "var(--text-muted)", fontSize: 13 }}>{cls?.grade ?? ""}</td>
+                    <td style={cell}>{batch?.name ?? lc.classId}</td>
+                    <td style={{ ...cell, color: "var(--text-muted)", fontSize: 13 }}>{batch?.grade ?? ""}</td>
                     <td style={{ ...cell, textAlign: "right" }}>
                       {canEdit && (
                         confirmUnlinkId === lc.classId ? (
                           <span style={{ display: "inline-flex", gap: 6 }}>
-                            <Button variant="danger" size="sm" onClick={() => handleUnlinkClass(lc.classId)}>Confirm</Button>
+                            <Button variant="danger" size="sm" onClick={() => handleUnlinkBatch(lc.classId)}>Confirm</Button>
                             <Button variant="ghost" size="sm" onClick={() => setConfirmUnlinkId(null)}>✕</Button>
                           </span>
                         ) : (
@@ -1731,8 +1744,12 @@ function ExamDetailInner() {
       const tone: BadgeTone = s.status === "submitted" ? "success" : s.status === "expired" ? "danger" : "warning";
       return <Badge tone={tone}>{s.status}</Badge>;
     } },
-    { key: "score", label: "Score", width: 110, render: (s) => <span style={{ fontSize: 13 }}>{s.autoScore !== null ? `${s.autoScore} / ${s.totalMarks}` : "—"}</span> },
-    { key: "started", label: "Started", width: 120, render: (s) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{new Date(s.createdAt).toLocaleDateString()}</span> },
+    { key: "score", label: "Score", width: 110, render: (s) => {
+      if (s.autoScore === null && s.manualScore === null) return <span style={{ fontSize: 13 }}>—</span>;
+      const total = (s.autoScore ?? 0) + (s.manualScore ?? 0);
+      return <span style={{ fontSize: 13 }}>{total} / {s.totalMarks}</span>;
+    } },
+    { key: "started", label: "Started", width: 120, render: (s) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{new Date(s.startedAt).toLocaleDateString()}</span> },
   ];
 
   const sessionsPanel = (
@@ -1770,16 +1787,16 @@ function ExamDetailInner() {
         width={520}
       >
         <p style={{ margin: "0 0 14px", fontSize: 13.5, color: "var(--text-muted)", lineHeight: 1.5 }}>
-          Set which classes sit this exam and when it runs. It goes live
+          Set which batches sit this exam and when it runs. It goes live
           automatically at the start time (or use “Go live now”).
         </p>
         {exam.visibility === "private" && (
           <div style={{ marginBottom: 14 }}>
-            <label style={fieldLabel}>Classes / batches</label>
+            <label style={fieldLabel}>Batches</label>
             <div style={{ marginTop: 6, maxHeight: 160, overflowY: "auto", border: "1px solid var(--border-default)", borderRadius: 10, padding: "6px 10px" }}>
-              {allClasses.length === 0 ? (
-                <p style={{ margin: "6px 0", fontSize: 13, color: "var(--text-muted)" }}>No classes available.</p>
-              ) : allClasses.map(c => (
+              {allBatches.length === 0 ? (
+                <p style={{ margin: "6px 0", fontSize: 13, color: "var(--text-muted)" }}>No batches available.</p>
+              ) : allBatches.map(c => (
                 <label key={c.id} style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer", fontSize: 14, color: "var(--text-heading)", padding: "4px 0" }}>
                   <input
                     type="checkbox"
@@ -1931,9 +1948,9 @@ function ExamDetailInner() {
           Results are published — students can see their scores &amp; reports.
         </p>
       )}
-      {editable && exam.visibility === "private" && linkedClasses.length === 0 && (
+      {editable && exam.visibility === "private" && linkedBatches.length === 0 && (
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, paddingLeft: 12, borderLeft: "3px solid var(--border-default)" }}>
-          Link at least one class under the <strong>Access</strong> tab before submitting for review.
+          Link at least one batch under the <strong>Access</strong> tab before submitting for review.
         </p>
       )}
 

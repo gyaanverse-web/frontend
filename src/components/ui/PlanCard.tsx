@@ -17,7 +17,7 @@ export interface PlanCardProps extends HTMLAttributes<HTMLDivElement> {
   onSelect?: () => void;
 }
 
-/** Pricing plan card. Exact Gyanverse plans: Free ₹0 / Starter ₹999 / Growth ₹2,499 / Pro ₹5,999. */
+/** Pricing plan card. Exact Gyaanverse plans: Free ₹0 / Starter ₹999 / Growth ₹2,499 / Pro ₹5,999. */
 export function PlanCard({
   name,
   price,
