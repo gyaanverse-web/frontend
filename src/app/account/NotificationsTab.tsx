@@ -44,7 +44,7 @@ const NOTIF_TYPES: {
   {
     type: "invite_received",
     label: "Invitation received",
-    description: "When you are invited to join a class or coaching.",
+    description: "When you are invited to join a batch or coaching.",
     channel: "Email",
   },
   {

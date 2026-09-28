@@ -38,7 +38,6 @@ export interface SessionUser {
   name: string;
   email: string;
   emailVerified: boolean;
-  tenantId: string | null;
   isProfileComplete: boolean;
 }
 
@@ -48,6 +47,12 @@ export interface TenantBase {
   id: string;
   slug: string;
   name: string;
+}
+
+/** One coaching the signed-in user belongs to, and their role in it. */
+export interface Membership {
+  tenant: TenantBase;
+  membershipRole: TenantRole;
 }
 
 export interface UseTenantSessionOptions {
@@ -252,4 +257,44 @@ export function useTenantSession<T extends TenantBase = TenantBase>(
     }),
     [state, refresh],
   );
+}
+
+/**
+ * Every coaching the signed-in user belongs to — the data behind the coaching
+ * switcher.
+ *
+ * Deliberately separate from `useTenantSession`: that hook redirects on an
+ * unauthenticated or disallowed-role visit, which a switcher must never
+ * trigger just by mounting alongside it. This reads the same cached
+ * `/tenants/me` response (shared through `lib/sessionStore`'s TTL cache), so
+ * mounting it next to a page's own `useTenantSession` costs no extra request.
+ *
+ * Resolves to an empty list on any failure (signed out, no coaching, network) —
+ * callers render nothing rather than an error, same as a switcher with one
+ * membership renders nothing.
+ */
+export function useMemberships(): { memberships: Membership[]; loading: boolean } {
+  const [nonce, setNonce] = useState(0);
+  const [state, setState] = useState<{ memberships: Membership[]; loading: boolean }>({
+    memberships: [],
+    loading: true,
+  });
+
+  useEffect(() => subscribeToSession(() => setNonce((n) => n + 1)), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getTenant()
+      .then((data) => {
+        if (!cancelled) setState({ memberships: data.memberships ?? [], loading: false });
+      })
+      .catch(() => {
+        if (!cancelled) setState({ memberships: [], loading: false });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [nonce]);
+
+  return state;
 }

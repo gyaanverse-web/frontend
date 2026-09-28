@@ -199,6 +199,11 @@
 }
 .gv-table tbody tr:hover .gv-row-chevron { color: var(--accent); opacity: 1; transform: translateX(3px); }
 
+/* Fee student ledger: tables left, plans + guardians right; stacks on narrow screens. */
+@media (max-width: 1080px) {
+  .gv-fee-ledger-grid { grid-template-columns: minmax(0, 1fr) !important; }
+}
+
 /* Live badge — a breathing pill for an exam currently running in its window */
 .gv-live-badge {
   display: inline-flex; align-items: center; gap: 6px;

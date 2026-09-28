@@ -1,6 +1,7 @@
 "use client";
 
 import { api, ApiError, setUnauthorizedHandler } from "./api";
+import { setActiveTenantSlug } from "./activeTenant";
 // Types only — erased at compile time, so this is not a runtime import cycle
 // even though useTenantSession imports the functions below.
 import type { SessionUser, TenantBase, TenantRole } from "./useTenantSession";
@@ -55,6 +56,13 @@ export interface TenantPayload<T extends TenantBase = TenantBase> {
    * callers fall back to `NO_BILLING`. Once both are out it is always present.
    */
   entitlements?: Entitlements;
+  /**
+   * Every coaching the signed-in user belongs to, oldest first — the data
+   * behind the coaching switcher. Always sent by the API regardless of which
+   * host answered; optional here only so a frontend deploy that lands ahead of
+   * the API still renders. See `useMemberships` in `useTenantSession.ts`.
+   */
+  memberships?: Array<{ tenant: TenantBase; membershipRole: TenantRole }>;
 }
 
 type Settled = { ok: true; value: unknown } | { ok: false; error: unknown };
@@ -132,7 +140,21 @@ export function getSession(): Promise<SessionPayload> {
  *  belonging to another — callers branch on both, so neither is an error. */
 export function getTenant<T extends TenantBase = TenantBase>(): Promise<TenantPayload<T>> {
   return cachedGet(TENANT_KEY, TENANT_TTL_MS, () =>
-    api.get<TenantPayload<T>>("/tenants/me"),
+    api.get<TenantPayload<T>>("/tenants/me").then(
+      (payload) => {
+        // Publish the slug so tenant-scoped calls work on a host that doesn't
+        // name one (app host, apex, localhost) — see lib/activeTenant.
+        setActiveTenantSlug(payload.tenant?.slug ?? null);
+        return payload;
+      },
+      (error: unknown) => {
+        // A durable answer — no coaching (404), not this one (403), signed out
+        // (401) — retires the slug. A transient 5xx says nothing about the
+        // membership, so the last known slug stands.
+        if (isDurableFailure(error)) setActiveTenantSlug(null);
+        throw error;
+      },
+    ),
   );
 }
 
@@ -148,6 +170,10 @@ export function getTenant<T extends TenantBase = TenantBase>(): Promise<TenantPa
 export function invalidateSession(): void {
   cache.clear();
   inflight.clear();
+  // The resolved slug is an answer about the membership like any other, so it
+  // goes too — a stale one outliving a sign-out would be attached to the next
+  // user's requests. The next `getTenant` republishes it.
+  setActiveTenantSlug(null);
   subscribers.forEach((fn) => fn());
 }
 

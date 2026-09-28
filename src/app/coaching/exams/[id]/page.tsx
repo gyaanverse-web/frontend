@@ -96,13 +96,13 @@ type Question = {
   createdAt: string;
 };
 
-type ExamClass = {
+type ExamBatch = {
   id: string;
   examId: string;
   classId: string;
 };
 
-type ClassItem = {
+type BatchItem = {
   id: string;
   name: string;
   grade: string | null;
@@ -613,10 +613,10 @@ function ExamDetailInner() {
   const [editQLoading, setEditQLoading]   = useState(false);
   const [editQErr, setEditQErr]           = useState("");
 
-  // class linking
-  const [linkedClasses, setLinkedClasses] = useState<ExamClass[]>([]);
-  const [allClasses, setAllClasses]       = useState<ClassItem[]>([]);
-  const [linkClassId, setLinkClassId]     = useState("");
+  // batch linking
+  const [linkedBatches, setLinkedBatches] = useState<ExamBatch[]>([]);
+  const [allBatches, setAllBatches]       = useState<BatchItem[]>([]);
+  const [linkBatchId, setLinkBatchId]     = useState("");
   const [linkLoading, setLinkLoading]     = useState(false);
   const [linkErr, setLinkErr]             = useState("");
   const [confirmUnlinkId, setConfirmUnlinkId] = useState<string | null>(null);
@@ -658,10 +658,10 @@ function ExamDetailInner() {
     }
   }, [examId]);
 
-  const loadLinkedClasses = useCallback(async (slug: string) => {
+  const loadLinkedBatches = useCallback(async (slug: string) => {
     try {
-      const data = await api.get<{ classes: ExamClass[] }>(`/tenant/exams/${examId}/classes`, { tenant: slug });
-      setLinkedClasses(data.classes);
+      const data = await api.get<{ classes: ExamBatch[] }>(`/tenant/exams/${examId}/classes`, { tenant: slug });
+      setLinkedBatches(data.classes);
     } catch { /* non-critical */ }
   }, [examId]);
 
@@ -673,12 +673,12 @@ function ExamDetailInner() {
     (async () => {
       const examData = await loadExam(slug);
       if (cancelled) return;
-      loadLinkedClasses(slug);
+      loadLinkedBatches(slug);
 
-      // load classes for linking
+      // load batches for linking
       try {
-        const cd = await api.get<{ classes: ClassItem[] }>("/tenant/classes", { tenant: slug });
-        if (!cancelled) setAllClasses(cd.classes);
+        const cd = await api.get<{ classes: BatchItem[] }>("/tenant/classes", { tenant: slug });
+        if (!cancelled) setAllBatches(cd.classes);
       } catch { /* ok */ }
 
       // load subjects
@@ -699,7 +699,7 @@ function ExamDetailInner() {
     })();
 
     return () => { cancelled = true; };
-  }, [tenant, loadExam, loadLinkedClasses]);
+  }, [tenant, loadExam, loadLinkedBatches]);
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -826,13 +826,13 @@ function ExamDetailInner() {
     }
   }
 
-  // Open the Schedule modal — pre-fill classes with current links and times with
+  // Open the Schedule modal — pre-fill batches with current links and times with
   // any already-set window (so re-scheduling starts from what is there today).
   function openSchedule() {
     if (!exam) return;
     setAdminErr(""); setRemarks("");
     setSchedForm({
-      classIds: linkedClasses.map(lc => lc.classId),
+      classIds: linkedBatches.map(lc => lc.classId),
       scheduledAt: exam.scheduledAt ? exam.scheduledAt.slice(0, 16) : "",
       endsAt: exam.endsAt ? exam.endsAt.slice(0, 16) : "",
     });
@@ -842,10 +842,10 @@ function ExamDetailInner() {
   async function refreshAfterAdmin() {
     if (!tenant) return;
     await loadExam(tenant.slug);
-    loadLinkedClasses(tenant.slug);
+    loadLinkedBatches(tenant.slug);
   }
 
-  // Approval is a verdict on the paper, nothing more — no dates, no classes.
+  // Approval is a verdict on the paper, nothing more — no dates, no batches.
   // Scheduling is a separate decision the admin makes whenever a slot is free,
   // so this is a one-click action rather than a modal.
   async function handleApprove() {
@@ -1019,28 +1019,28 @@ function ExamDetailInner() {
     }
   }
 
-  async function handleLinkClass() {
-    if (!tenant || !exam || !linkClassId) return;
+  async function handleLinkBatch() {
+    if (!tenant || !exam || !linkBatchId) return;
     setLinkErr(""); setLinkLoading(true);
     try {
-      const res = await api.post<{ examClass: ExamClass }>(`/tenant/exams/${exam.id}/classes`, { classId: linkClassId }, { tenant: tenant.slug });
-      setLinkedClasses(prev => [...prev, res.examClass]);
-      setLinkClassId("");
+      const res = await api.post<{ examClass: ExamBatch }>(`/tenant/exams/${exam.id}/classes`, { classId: linkBatchId }, { tenant: tenant.slug });
+      setLinkedBatches(prev => [...prev, res.examClass]);
+      setLinkBatchId("");
     } catch (err) {
-      setLinkErr(err instanceof Error ? err.message : "Failed to link class");
+      setLinkErr(err instanceof Error ? err.message : "Failed to link batch");
     } finally {
       setLinkLoading(false);
     }
   }
 
-  async function handleUnlinkClass(classId: string) {
+  async function handleUnlinkBatch(batchId: string) {
     if (!tenant || !exam) return;
     setConfirmUnlinkId(null);
     try {
-      await api.delete(`/tenant/exams/${exam.id}/classes/${classId}`, { tenant: tenant.slug });
-      setLinkedClasses(prev => prev.filter(lc => lc.classId !== classId));
+      await api.delete(`/tenant/exams/${exam.id}/classes/${batchId}`, { tenant: tenant.slug });
+      setLinkedBatches(prev => prev.filter(lc => lc.classId !== batchId));
     } catch (err) {
-      setLinkErr(err instanceof Error ? err.message : "Failed to unlink class");
+      setLinkErr(err instanceof Error ? err.message : "Failed to unlink batch");
     }
   }
 
@@ -1166,7 +1166,7 @@ function ExamDetailInner() {
   // `canEdit`. See `canPublishResultsAsOwner`.
   const canEdit = role === "teacher" && exam.createdBy === user.id;
   const editable = canEdit && isExamEditable(exam.status);
-  const unlinkedClasses = allClasses.filter(c => !linkedClasses.some(lc => lc.classId === c.id));
+  const unlinkedBatches = allBatches.filter(c => !linkedBatches.some(lc => lc.classId === c.id));
 
   const tabs = ["Overview", "Questions"];
   if (exam.visibility === "private") tabs.push("Access");
@@ -1669,35 +1669,35 @@ function ExamDetailInner() {
   // ── Access panel (private exams) ────────────────────────────────────────────
   const accessPanel = (
     <div>
-      {editable && unlinkedClasses.length > 0 && (
+      {editable && unlinkedBatches.length > 0 && (
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
-          <select value={linkClassId} onChange={e => setLinkClassId(e.target.value)} style={{ ...inp, minWidth: 240 }}>
-            <option value="">— select a class —</option>
-            {unlinkedClasses.map(c => <option key={c.id} value={c.id}>{c.name}{c.grade ? ` (${c.grade})` : ""}</option>)}
+          <select value={linkBatchId} onChange={e => setLinkBatchId(e.target.value)} style={{ ...inp, minWidth: 240 }}>
+            <option value="">— select a batch —</option>
+            {unlinkedBatches.map(c => <option key={c.id} value={c.id}>{c.name}{c.grade ? ` (${c.grade})` : ""}</option>)}
           </select>
-          <Button variant="app" disabled={linkLoading || !linkClassId} onClick={handleLinkClass}>{linkLoading ? "Linking…" : "Link class"}</Button>
+          <Button variant="app" disabled={linkLoading || !linkBatchId} onClick={handleLinkBatch}>{linkLoading ? "Linking…" : "Link batch"}</Button>
         </div>
       )}
       {linkErr && <p style={{ margin: "0 0 10px", color: "var(--danger)", fontSize: 12 }}>{linkErr}</p>}
-      {linkedClasses.length === 0 ? (
+      {linkedBatches.length === 0 ? (
         <div className="gv-card" style={{ padding: 28, textAlign: "center", color: "var(--text-muted)", fontSize: 14 }}>
-          No classes linked. Students in linked classes can take this exam.
+          No batches linked. Students in linked batches can take this exam.
         </div>
       ) : (
         <div className="gv-card" style={{ padding: 0, overflow: "hidden" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <tbody>
-              {linkedClasses.map(lc => {
-                const cls = allClasses.find(c => c.id === lc.classId);
+              {linkedBatches.map(lc => {
+                const batch = allBatches.find(c => c.id === lc.classId);
                 return (
                   <tr key={lc.id}>
-                    <td style={cell}>{cls?.name ?? lc.classId}</td>
-                    <td style={{ ...cell, color: "var(--text-muted)", fontSize: 13 }}>{cls?.grade ?? ""}</td>
+                    <td style={cell}>{batch?.name ?? lc.classId}</td>
+                    <td style={{ ...cell, color: "var(--text-muted)", fontSize: 13 }}>{batch?.grade ?? ""}</td>
                     <td style={{ ...cell, textAlign: "right" }}>
                       {canEdit && (
                         confirmUnlinkId === lc.classId ? (
                           <span style={{ display: "inline-flex", gap: 6 }}>
-                            <Button variant="danger" size="sm" onClick={() => handleUnlinkClass(lc.classId)}>Confirm</Button>
+                            <Button variant="danger" size="sm" onClick={() => handleUnlinkBatch(lc.classId)}>Confirm</Button>
                             <Button variant="ghost" size="sm" onClick={() => setConfirmUnlinkId(null)}>✕</Button>
                           </span>
                         ) : (
@@ -1787,16 +1787,16 @@ function ExamDetailInner() {
         width={520}
       >
         <p style={{ margin: "0 0 14px", fontSize: 13.5, color: "var(--text-muted)", lineHeight: 1.5 }}>
-          Set which classes sit this exam and when it runs. It goes live
+          Set which batches sit this exam and when it runs. It goes live
           automatically at the start time (or use “Go live now”).
         </p>
         {exam.visibility === "private" && (
           <div style={{ marginBottom: 14 }}>
-            <label style={fieldLabel}>Classes / batches</label>
+            <label style={fieldLabel}>Batches</label>
             <div style={{ marginTop: 6, maxHeight: 160, overflowY: "auto", border: "1px solid var(--border-default)", borderRadius: 10, padding: "6px 10px" }}>
-              {allClasses.length === 0 ? (
-                <p style={{ margin: "6px 0", fontSize: 13, color: "var(--text-muted)" }}>No classes available.</p>
-              ) : allClasses.map(c => (
+              {allBatches.length === 0 ? (
+                <p style={{ margin: "6px 0", fontSize: 13, color: "var(--text-muted)" }}>No batches available.</p>
+              ) : allBatches.map(c => (
                 <label key={c.id} style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer", fontSize: 14, color: "var(--text-heading)", padding: "4px 0" }}>
                   <input
                     type="checkbox"
@@ -1948,9 +1948,9 @@ function ExamDetailInner() {
           Results are published — students can see their scores &amp; reports.
         </p>
       )}
-      {editable && exam.visibility === "private" && linkedClasses.length === 0 && (
+      {editable && exam.visibility === "private" && linkedBatches.length === 0 && (
         <p style={{ fontSize: 13, color: "var(--text-muted)", marginBottom: 12, paddingLeft: 12, borderLeft: "3px solid var(--border-default)" }}>
-          Link at least one class under the <strong>Access</strong> tab before submitting for review.
+          Link at least one batch under the <strong>Access</strong> tab before submitting for review.
         </p>
       )}
 

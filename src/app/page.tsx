@@ -15,11 +15,11 @@ import styles from "./page.module.css";
 export const metadata: Metadata = {
   title: "Gyaanverse — The all-in-one EdTech OS for coaching institutes",
   description:
-    "Run your coaching's entire test program online. Host classes, automate fee transactions, generate mock tests, and pinpoint exact mistakes with AI — all in one platform.",
+    "Run your coaching's entire test program online. Host batches, automate fee transactions, generate mock tests, and pinpoint exact mistakes with AI — all in one platform.",
   openGraph: {
     title: "Gyaanverse — The all-in-one EdTech OS",
     description:
-      "Host classes, automate fees, run AI-powered exams, and analyze performance. Built for Indian coaching institutes.",
+      "Host batches, automate fees, run AI-powered exams, and analyze performance. Built for Indian coaching institutes.",
     type: "website",
   },
 };
@@ -106,7 +106,7 @@ const PLANS = [
   {
     name: "Free",
     price: "₹0",
-    features: ["30 students · 5 teachers", "5 classes", "3 mocks/mo", "10 AI evals/mo"],
+    features: ["30 students · 5 teachers", "5 batches", "3 mocks/mo", "10 AI evals/mo"],
     cta: "Start Free",
   },
   {
@@ -114,7 +114,7 @@ const PLANS = [
     price: "₹999",
     features: [
       "100 students · 10 teachers",
-      "20 classes",
+      "20 batches",
       "15 mocks/mo",
       "100 AI evals/mo",
       "Public mocks",
@@ -127,7 +127,7 @@ const PLANS = [
     highlighted: true,
     features: [
       "500 students · 20 teachers",
-      "50 classes",
+      "50 batches",
       "50 mocks/mo",
       "500 AI evals/mo",
       "Advanced analytics",
@@ -200,7 +200,7 @@ export default function Home() {
               <span className="gv-em">Online.</span>
             </h1>
             <p style={{ fontSize: 17, lineHeight: 1.7, color: "var(--text-body)" }}>
-              Host classes, automate fee transactions, analyze performance with AI, and
+              Host batches, automate fee transactions, analyze performance with AI, and
               manage your entire educational operation at a fraction of the cost.
             </p>
 
@@ -462,7 +462,7 @@ export default function Home() {
               Pay for <span className="gv-em">growth</span>, not seats.
             </h2>
             <p style={{ fontSize: 16, color: "var(--text-body)" }}>
-              Every plan includes the test engine, classes, and fee automation.
+              Every plan includes the test engine, batches, and fee automation.
             </p>
           </div>
 

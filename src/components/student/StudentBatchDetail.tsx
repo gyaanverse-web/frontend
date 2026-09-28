@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { fmtDate, examState, type StudentClass, type Classmate } from "@/lib/studentClasses";
+import { fmtDate, examState, type StudentBatch, type Batchmate } from "@/lib/studentBatches";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
 import { Card, Badge, Icon, Avatar } from "@/components/ui";
 import type { IconName } from "@/components/ui";
@@ -12,8 +12,8 @@ type ShellUser = { name: string; role?: string };
 type ShellTenant = { name: string; slug: string } | null;
 
 // The exam fields this screen uses. `classIds` is what lets one batch filter the
-// student's whole exam list client-side instead of calling a per-class endpoint.
-type ClassExam = {
+// student's whole exam list client-side instead of calling a per-batch endpoint.
+type BatchExam = {
   id: string;
   title: string;
   status: string;
@@ -41,18 +41,18 @@ function StatTile({ icon, value, label }: { icon: IconName; value: string; label
   );
 }
 
-export function StudentClassDetail({
-  classId,
+export function StudentBatchDetail({
+  batchId,
   user,
   tenant,
 }: {
-  classId: string;
+  batchId: string;
   user: ShellUser;
   tenant: ShellTenant;
 }) {
-  const [cls, setCls] = useState<StudentClass | null>(null);
-  const [classmates, setClassmates] = useState<Classmate[]>([]);
-  const [exams, setExams] = useState<ClassExam[]>([]);
+  const [batch, setBatch] = useState<StudentBatch | null>(null);
+  const [batchmates, setBatchmates] = useState<Batchmate[]>([]);
+  const [exams, setExams] = useState<BatchExam[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -65,25 +65,25 @@ export function StudentClassDetail({
     // enrollment status, the teacher's name, the counts), and it doubles as the
     // membership check — a batch the student isn't in simply isn't in it.
     Promise.all([
-      api.get<{ classes: StudentClass[] }>("/tenant/classes"),
-      api.get<{ students: Classmate[] }>(`/tenant/classes/${classId}/students`)
-        .catch(() => ({ students: [] as Classmate[] })),
-      api.get<{ exams: ClassExam[] }>("/tenant/exams")
-        .catch(() => ({ exams: [] as ClassExam[] })),
+      api.get<{ classes: StudentBatch[] }>("/tenant/classes"),
+      api.get<{ students: Batchmate[] }>(`/tenant/classes/${batchId}/students`)
+        .catch(() => ({ students: [] as Batchmate[] })),
+      api.get<{ exams: BatchExam[] }>("/tenant/exams")
+        .catch(() => ({ exams: [] as BatchExam[] })),
     ])
-      .then(([classRes, mateRes, examRes]) => {
+      .then(([batchRes, mateRes, examRes]) => {
         if (cancelled) return;
-        const found = classRes.classes.find((c) => c.id === classId) ?? null;
-        setCls(found);
+        const found = batchRes.classes.find((c) => c.id === batchId) ?? null;
+        setBatch(found);
         if (!found) setError("This batch isn't one of yours, or your enrollment is still awaiting approval.");
-        setClassmates(mateRes.students);
-        setExams(examRes.exams.filter((e) => (e.classIds ?? []).includes(classId)));
+        setBatchmates(mateRes.students);
+        setExams(examRes.exams.filter((e) => (e.classIds ?? []).includes(batchId)));
       })
       .catch((e) => { if (!cancelled) setError(e instanceof Error ? e.message : "Could not load this batch."); })
       .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [classId, tenant]);
+  }, [batchId, tenant]);
 
   const upcoming = useMemo(
     () => exams.filter((e) => e.status === "scheduled" || e.status === "live").length,
@@ -91,15 +91,15 @@ export function StudentClassDetail({
   );
 
   const backLink = (
-    <Link href="/student/classes" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-muted)", textDecoration: "none", marginBottom: 14 }}>
+    <Link href="/student/batches" style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-muted)", textDecoration: "none", marginBottom: 14 }}>
       <span aria-hidden="true">←</span>
-      <span>My classes</span>
+      <span>My batches</span>
     </Link>
   );
 
-  if (loading || !cls) {
+  if (loading || !batch) {
     return (
-      <TeacherShell tenant={tenant} user={user} role="student" active="classes" noCoaching={!tenant}>
+      <TeacherShell tenant={tenant} user={user} role="student" active="batches" noCoaching={!tenant}>
         <div style={{ maxWidth: 1080, margin: "0 auto" }}>
           {backLink}
           <Card padding={0}>
@@ -113,7 +113,7 @@ export function StudentClassDetail({
   }
 
   return (
-    <TeacherShell tenant={tenant} user={user} role="student" active="classes" noCoaching={!tenant}>
+    <TeacherShell tenant={tenant} user={user} role="student" active="batches" noCoaching={!tenant}>
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         {backLink}
 
@@ -124,12 +124,12 @@ export function StudentClassDetail({
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>
-              {cls.grade || "Batch"}
+              {batch.grade || "Batch"}
             </div>
-            <h2 style={{ fontSize: 26, margin: "2px 0 0" }}>{cls.name}</h2>
-            {cls.description && (
+            <h2 style={{ fontSize: 26, margin: "2px 0 0" }}>{batch.name}</h2>
+            {batch.description && (
               <p style={{ fontSize: 14, lineHeight: 1.6, color: "var(--text-body)", margin: "8px 0 0", maxWidth: 640 }}>
-                {cls.description}
+                {batch.description}
               </p>
             )}
           </div>
@@ -137,7 +137,7 @@ export function StudentClassDetail({
         </div>
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 26 }}>
-          <StatTile icon="users" value={String(cls.studentCount)} label={cls.studentCount === 1 ? "student" : "students"} />
+          <StatTile icon="users" value={String(batch.studentCount)} label={batch.studentCount === 1 ? "student" : "students"} />
           <StatTile icon="file-text" value={String(exams.length)} label={exams.length === 1 ? "exam" : "exams"} />
           <StatTile icon="clock" value={String(upcoming)} label="open or upcoming" />
         </div>
@@ -176,34 +176,42 @@ export function StudentClassDetail({
             )}
           </Card>
 
-          {/* ── Teacher + classmates ────────────────────────────────────────── */}
+          {/* ── Teacher + batchmates ────────────────────────────────────────── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <Card padding={20}>
-              <h3 style={{ margin: "0 0 14px", fontSize: 16, color: "var(--text-heading)" }}>Your teacher</h3>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <Avatar name={cls.teacherName ?? "?"} size={40} />
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-heading)" }}>
-                    {cls.teacherName ?? "Not assigned"}
-                  </div>
-                  <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Batch teacher</div>
+              <h3 style={{ margin: "0 0 14px", fontSize: 16, color: "var(--text-heading)" }}>
+                {batch.teachers.length > 1 ? "Your teachers" : "Your teacher"}
+              </h3>
+              {batch.teachers.length === 0 ? (
+                <div style={{ fontSize: 13.5, color: "var(--text-muted)" }}>Not assigned yet</div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {batch.teachers.map((t) => (
+                    <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <Avatar name={t.name} size={40} />
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--text-heading)" }}>{t.name}</div>
+                        <div style={{ fontSize: 12.5, color: "var(--text-muted)" }}>Batch teacher</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              )}
               <p style={{ margin: "14px 0 0", paddingTop: 14, borderTop: "1px solid var(--border-default)", fontSize: 12.5, color: "var(--text-muted)" }}>
-                You joined on {fmtDate(cls.enrolledAt)}.
+                You joined on {fmtDate(batch.enrolledAt)}.
               </p>
             </Card>
 
             <Card padding={20}>
-              <h3 style={{ margin: "0 0 4px", fontSize: 16, color: "var(--text-heading)" }}>Classmates</h3>
+              <h3 style={{ margin: "0 0 4px", fontSize: 16, color: "var(--text-heading)" }}>Batchmates</h3>
               <p style={{ margin: "0 0 14px", fontSize: 12.5, color: "var(--text-muted)" }}>
-                {classmates.length} enrolled in this batch.
+                {batchmates.length} enrolled in this batch.
               </p>
-              {classmates.length === 0 ? (
+              {batchmates.length === 0 ? (
                 <p style={{ margin: 0, fontSize: 13.5, color: "var(--text-muted)" }}>No one else has joined yet.</p>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {classmates.map((m) => (
+                  {batchmates.map((m) => (
                     <div key={m.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
                       <Avatar name={m.name} size={30} />
                       <span style={{ fontSize: 13.5, color: "var(--text-body)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

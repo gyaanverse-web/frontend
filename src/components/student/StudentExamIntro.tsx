@@ -407,7 +407,7 @@ export function StudentExamIntro({ examId }: { examId: string }) {
         }}>
           <Particular label="Candidate" value={user?.name ?? "—"} />
           <Particular label="Registered email" value={user?.email ?? "—"} />
-          {exam.gradeLevel && <Particular label="Class / grade" value={exam.gradeLevel} />}
+          {exam.gradeLevel && <Particular label="Grade" value={exam.gradeLevel} />}
           <Particular label="Duration" value={fmtDuration(exam.durationMins)} />
           <Particular label="Maximum marks" value={fmtMarks(exam.totalMarks)} />
           {startsWhen && <Particular label="Opens at" value={startsWhen} />}

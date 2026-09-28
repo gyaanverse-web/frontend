@@ -28,10 +28,18 @@ type Router = ReturnType<typeof useRouter>;
  *
  * `nextParam` honors a `?next=/foo` from the URL — relative paths only, for
  * obvious phishing reasons.
+ *
+ * `offerChooser` sends someone with more than one coaching to `/choose-coaching`
+ * instead of silently landing them on their oldest membership — only when
+ * there is no explicit destination already named (an `?next=` link is asking
+ * for a specific page, not "pick a coaching"). Callers that already know
+ * exactly where they're going (accepting an invite, joining by code) leave
+ * this off: the coaching in that flow isn't ambiguous, so a chooser there
+ * would interrupt with a question that has only one sane answer.
  */
 export async function postAuthRedirect(
   router: Router,
-  opts: { fallbackPath?: string; nextParam?: string | null } = {},
+  opts: { fallbackPath?: string; nextParam?: string | null; offerChooser?: boolean } = {},
 ): Promise<void> {
   const explicitNext = opts.nextParam && opts.nextParam.startsWith("/")
     ? opts.nextParam
@@ -40,6 +48,12 @@ export async function postAuthRedirect(
 
   try {
     const data = await getTenant();
+
+    if (opts.offerChooser && !explicitNext && (data.memberships?.length ?? 0) > 1) {
+      router.replace("/choose-coaching");
+      return;
+    }
+
     const slug = data.tenant.slug;
 
     if (currentTenantSlug() === slug) {
@@ -60,7 +74,7 @@ export async function postAuthRedirect(
       //
       // Only the bare `/coaching/dashboard` default is overridden. A caller that named a
       // destination — a ?next= invite link, or an explicit fallbackPath like
-      // /student/classes after a join — knows something more specific than
+      // /student/batches after a join — knows something more specific than
       // "you meant to run a coaching once", so it wins.
       const named = explicitNext !== null || opts.fallbackPath !== undefined;
       const noTenantPath = named ? path : (await pendingOwnerPath()) ?? path;

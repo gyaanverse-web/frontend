@@ -26,8 +26,7 @@ type UserRow = {
   emailVerified: boolean;
   phoneNumber: string | null;
   phoneNumberVerified: boolean;
-  role: string;
-  tenantId: string | null;
+  accountRole: string;
   isProfileComplete: boolean;
   createdAt: string;
 };
@@ -178,13 +177,14 @@ export function ProfileTab() {
             </>
           ),
         },
-        // The ACCOUNT role, which is what this page is about. It can differ from
-        // the role held inside a given coaching — that one comes from
-        // `useTenantSession`. Display only; gates nothing.
-        {
-          label: "Role",
-          value: <span style={{ textTransform: "capitalize" }}>{user.role.replace(/_/g, " ")}</span>,
-        },
+        // The platform-level account role. It is 'student' for everyone except
+        // a platform operator — a coaching owner's role lives on the specific
+        // coaching's membership instead (see `useTenantSession`), since one
+        // account can hold different roles at different coachings. Only worth
+        // a row when it says something `useTenantSession` doesn't already.
+        ...(user.accountRole === "super_admin"
+          ? [{ label: "Platform role", value: "Super admin" }]
+          : []),
         { label: "Member since", value: new Date(user.createdAt).toLocaleDateString() },
         {
           label: "User ID",

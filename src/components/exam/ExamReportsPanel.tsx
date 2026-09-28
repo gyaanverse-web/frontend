@@ -475,7 +475,7 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
       {stats && (
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
           <ScoreTile label="Reports" value={String(reports.length)} />
-          <ScoreTile label="Class average" value={`${stats.avg}%`} tone={scoreTone(stats.avg, 100)} />
+          <ScoreTile label="Batch average" value={`${stats.avg}%`} tone={scoreTone(stats.avg, 100)} />
           <ScoreTile label="Highest" value={`${pct(stats.top.totalScore, stats.top.maxScore)}%`} sub={stats.top.studentName} />
           <ScoreTile label="Lowest" value={`${pct(stats.low.totalScore, stats.low.maxScore)}%`} sub={stats.low.studentName} />
           <ScoreTile label="AI-graded" value={`${stats.aiGraded}`} sub="papers with AI marks" />
@@ -573,7 +573,7 @@ export function ExamReportsPanel({ examId, tenantSlug, questions, published }: E
  *      is a step in the process, and colour is read faster than copy.
  *   3. **Not a table row and not clickable.** There is no score behind it and
  *      nothing to drill into; a row of em-dashes in a marks table invites a click
- *      that can only disappoint, and would drag these into the class average.
+  *      that can only disappoint, and would drag these into the batch average.
  */
 function AwaitingReportList({ rows }: { rows: AwaitingReportRow[] }) {
   if (rows.length === 0) return null;

@@ -37,7 +37,7 @@ export function DangerSection({ tenant, onDeleted }: Props) {
 
         <div style={{ padding: "14px" }}>
           <p style={{ margin: "0 0 10px 0", fontSize: "13px" }}>
-            <strong>Delete Coaching Institute</strong> — permanently removes all members, classes, exams, and data.
+            <strong>Delete Coaching Institute</strong> — permanently removes all members, batches, exams, and data.
             This action cannot be undone.
           </p>
           {err && <p style={{ margin: "0 0 8px 0", fontSize: "13px", color: "var(--danger)" }}>{err}</p>}

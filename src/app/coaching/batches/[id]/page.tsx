@@ -7,28 +7,30 @@ import { buildTenantUrl } from "@/lib/tenantUrl";
 import { useTenantSession } from "@/lib/useTenantSession";
 import { useUrlState } from "@/lib/useUrlState";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
-import { Badge, Button, DataTable, Tabs, Avatar, Switch, Input, Modal, Select } from "@/components/ui";
+import { Badge, Button, DataTable, Tabs, Avatar, Switch, Input, Modal } from "@/components/ui";
 import type { Column, BadgeTone } from "@/components/ui";
+import { TeacherPicker, type TeacherOption } from "../TeacherPicker";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type Tenant = { id: string; slug: string; name: string };
 
-type Class = {
+type Batch = {
   id: string;
   tenantId: string;
-  teacherId: string;
   name: string;
   grade: string | null;
   description: string | null;
   autoApprove: boolean;
   createdAt: string;
   updatedAt: string;
+  teachers: { id: string; name: string }[];
 };
 
-type ClassJoinCode = {
+type BatchJoinCode = {
   id: string;
   code: string;
+  /** The batch this code enrols into. Wire name from the API. */
   classId: string;
   tenantId: string;
   createdBy: string;
@@ -39,7 +41,7 @@ type ClassJoinCode = {
   createdAt: string;
 };
 
-type ClassStudent = {
+type BatchStudent = {
   id: string;
   studentId: string;
   status: "pending" | "approved" | "rejected";
@@ -65,18 +67,18 @@ function initials(name: string): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-function ClassDetailInner() {
+function BatchDetailInner() {
   const router = useRouter();
   const params = useParams();
-  const classId = params?.id as string;
+  const batchId = params?.id as string;
 
-  // Students may view a class they're enrolled in; management controls below
-  // are gated on `role` being owner/teacher.
+  // The owner manages everything here. An assigned teacher sees the batch and
+  // its roster read-only. A student sees the description only.
   const { user, tenant, role } = useTenantSession<Tenant>();
   const [pageError, setPageError] = useState("");
 
-  const [cls, setCls] = useState<Class | null>(null);
-  const [clsLoading, setClsLoading] = useState(true);
+  const [batch, setBatch] = useState<Batch | null>(null);
+  const [batchLoading, setBatchLoading] = useState(true);
 
   // edit (settings modal)
   const [editOpen, setEditOpen] = useState(false);
@@ -86,14 +88,15 @@ function ClassDetailInner() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // reassign teacher (owner only, inside settings)
-  const [teacherOptions, setTeacherOptions] = useState<{ userId: string; name: string }[]>([]);
-  const [reassignTo, setReassignTo] = useState("");
-  const [reassigning, setReassigning] = useState(false);
-  const [reassignErr, setReassignErr] = useState("");
+  // assigned teachers (owner edits)
+  const [teacherOptions, setTeacherOptions] = useState<TeacherOption[]>([]);
+  const [teachersOpen, setTeachersOpen] = useState(false);
+  const [teacherDraft, setTeacherDraft] = useState<string[]>([]);
+  const [savingTeachers, setSavingTeachers] = useState(false);
+  const [teachersErr, setTeachersErr] = useState("");
 
   // join codes
-  const [joinCodes, setJoinCodes] = useState<ClassJoinCode[]>([]);
+  const [joinCodes, setJoinCodes] = useState<BatchJoinCode[]>([]);
   const [jcError, setJcError] = useState("");
   const [showJcForm, setShowJcForm] = useState(false);
   const [createJcForm, setCreateJcForm] = useState({ expiresAt: "", maxUses: "" });
@@ -103,7 +106,7 @@ function ClassDetailInner() {
   const [copiedJcId, setCopiedJcId] = useState<string | null>(null);
 
   // students
-  const [students, setStudents] = useState<ClassStudent[]>([]);
+  const [students, setStudents] = useState<BatchStudent[]>([]);
   const [studentsError, setStudentsError] = useState("");
   // `?roster=pending` — approving joiners is a repeated task, so the tab that
   // holds them has to still be there after the page reloads.
@@ -118,87 +121,92 @@ function ClassDetailInner() {
     if (!tenant || !role) return;
     const slug = tenant.slug;
 
-    api.get<{ class: Class }>(`/tenant/classes/${classId}`, { tenant: slug })
+    api.get<{ class: Batch }>(`/tenant/classes/${batchId}`, { tenant: slug })
       .then((data) => {
-        setCls(data.class);
+        setBatch(data.class);
         setEditForm({
           name: data.class.name,
           grade: data.class.grade ?? "",
           description: data.class.description ?? "",
           autoApprove: data.class.autoApprove,
         });
-        if (role === "coaching_owner" || role === "teacher") {
-          loadJoinCodes(slug, classId);
-          loadStudents(slug, classId);
-        }
-        // Only the owner can reassign, so only the owner needs the teacher list.
+        if (role === "coaching_owner" || role === "teacher") loadStudents(slug, batchId);
+        // Join codes and teacher assignment are owner-only.
         if (role === "coaching_owner") {
-          api.get<{ teachers: { userId: string; name: string }[] }>("/tenant/teachers", { tenant: slug })
+          loadJoinCodes(slug, batchId);
+          api.get<{ teachers: TeacherOption[] }>("/tenant/teachers", { tenant: slug })
             .then((d) => setTeacherOptions(d.teachers))
-            .catch(() => { /* non-fatal: reassign just won't have options */ });
+            .catch(() => { /* non-fatal: the picker just shows no options */ });
         }
       })
-      .catch((err) => setPageError(err instanceof Error ? err.message : "Failed to load class"))
-      .finally(() => setClsLoading(false));
+      .catch((err) => setPageError(err instanceof Error ? err.message : "Failed to load batch"))
+      .finally(() => setBatchLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classId, tenant, role]);
+  }, [batchId, tenant, role]);
 
   // ── API actions ───────────────────────────────────────────────────────────
 
   async function handleEditSave(e: React.FormEvent) {
     e.preventDefault();
-    if (!tenant || !cls) return;
+    if (!tenant || !batch) return;
     setEditError(""); setEditLoading(true);
     try {
       const body: Record<string, unknown> = {};
-      if (editForm.name !== cls.name) body.name = editForm.name;
+      if (editForm.name !== batch.name) body.name = editForm.name;
       const newGrade = editForm.grade || null;
-      if (newGrade !== cls.grade) body.grade = newGrade;
+      if (newGrade !== batch.grade) body.grade = newGrade;
       const newDesc = editForm.description || null;
-      if (newDesc !== cls.description) body.description = newDesc;
-      if (editForm.autoApprove !== cls.autoApprove) body.autoApprove = editForm.autoApprove;
+      if (newDesc !== batch.description) body.description = newDesc;
+      if (editForm.autoApprove !== batch.autoApprove) body.autoApprove = editForm.autoApprove;
       if (Object.keys(body).length === 0) { setEditOpen(false); return; }
-      const res = await api.patch<{ class: Class }>(`/tenant/classes/${classId}`, body, { tenant: tenant.slug });
-      setCls(res.class);
+      const res = await api.patch<{ class: Batch }>(`/tenant/classes/${batchId}`, body, { tenant: tenant.slug });
+      setBatch(res.class);
       setEditOpen(false);
     } catch (err) {
-      setEditError(err instanceof Error ? err.message : "Failed to update class");
+      setEditError(err instanceof Error ? err.message : "Failed to update batch");
     } finally {
       setEditLoading(false);
     }
   }
 
-  async function handleDeleteClass() {
+  async function handleDeleteBatch() {
     if (!tenant) return;
     setPageError(""); setDeleting(true);
     try {
-      await api.delete(`/tenant/classes/${classId}`, { tenant: tenant.slug });
-      router.push("/coaching/classes");
+      await api.delete(`/tenant/classes/${batchId}`, { tenant: tenant.slug });
+      router.push("/coaching/batches");
     } catch (err) {
-      setPageError(err instanceof Error ? err.message : "Failed to delete class");
+      setPageError(err instanceof Error ? err.message : "Failed to delete batch");
       setDeleting(false);
       setConfirmDelete(false);
     }
   }
 
-  async function handleReassign() {
-    if (!tenant || !cls || !reassignTo) return;
-    setReassignErr(""); setReassigning(true);
+  function openTeachers() {
+    if (!batch) return;
+    setTeacherDraft(batch.teachers.map((t) => t.id));
+    setTeachersErr("");
+    setTeachersOpen(true);
+  }
+
+  async function handleSaveTeachers() {
+    if (!tenant || !batch) return;
+    setTeachersErr(""); setSavingTeachers(true);
     try {
-      const res = await api.patch<{ class: Class }>(`/tenant/classes/${classId}/teacher`, { teacherId: reassignTo }, { tenant: tenant.slug });
-      setCls(res.class);
-      setReassignTo("");
+      const res = await api.put<{ class: Batch }>(`/tenant/classes/${batchId}/teachers`, { teacherIds: teacherDraft }, { tenant: tenant.slug });
+      setBatch(res.class);
+      setTeachersOpen(false);
     } catch (err) {
-      setReassignErr(err instanceof Error ? err.message : "Failed to reassign class");
+      setTeachersErr(err instanceof Error ? err.message : "Failed to update teachers");
     } finally {
-      setReassigning(false);
+      setSavingTeachers(false);
     }
   }
 
   async function loadJoinCodes(slug: string, id: string) {
     setJcError("");
     try {
-      const data = await api.get<{ joinCodes: ClassJoinCode[] }>(`/tenant/classes/${id}/join-codes`, { tenant: slug });
+      const data = await api.get<{ joinCodes: BatchJoinCode[] }>(`/tenant/classes/${id}/join-codes`, { tenant: slug });
       setJoinCodes(data.joinCodes);
     } catch (err) {
       setJcError(err instanceof Error ? err.message : "Failed to load join codes");
@@ -213,7 +221,7 @@ function ClassDetailInner() {
       const body: Record<string, unknown> = {};
       if (createJcForm.expiresAt) body.expiresAt = new Date(createJcForm.expiresAt + "T23:59:59.999Z").toISOString();
       if (createJcForm.maxUses) body.maxUses = parseInt(createJcForm.maxUses, 10);
-      const res = await api.post<{ joinCode: ClassJoinCode }>(`/tenant/classes/${classId}/join-codes`, body, { tenant: tenant.slug });
+      const res = await api.post<{ joinCode: BatchJoinCode }>(`/tenant/classes/${batchId}/join-codes`, body, { tenant: tenant.slug });
       setCreateJcForm({ expiresAt: "", maxUses: "" });
       setShowJcForm(false);
       setJoinCodes((prev) => [res.joinCode, ...prev]);
@@ -228,19 +236,19 @@ function ClassDetailInner() {
     if (!tenant) return;
     setConfirmRevokeJcId(null); setJcError("");
     try {
-      await api.delete(`/tenant/classes/${classId}/join-codes/${codeId}`, { tenant: tenant.slug });
+      await api.delete(`/tenant/classes/${batchId}/join-codes/${codeId}`, { tenant: tenant.slug });
       setJoinCodes((prev) => prev.filter((jc) => jc.id !== codeId));
     } catch (err) {
       setJcError(err instanceof Error ? err.message : "Failed to revoke code");
     }
   }
 
-  async function copyJoinLink(jc: ClassJoinCode) {
-    // Class codes redeem at /join/class/:code (join_codes table), NOT the
+  async function copyJoinLink(jc: BatchJoinCode) {
+    // Batch codes redeem at /join/batch/:code (join_codes table), NOT the
     // coaching /join/:code page (coaching_join_codes) — that only knows about
     // institute-wide codes and would report "Join code not found".
     if (!tenant) return;
-    const url = buildTenantUrl(tenant.slug, `/join/class/${jc.code}`);
+    const url = buildTenantUrl(tenant.slug, `/join/batch/${jc.code}`);
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url);
@@ -264,7 +272,7 @@ function ClassDetailInner() {
   async function loadStudents(slug: string, id: string) {
     setStudentsError("");
     try {
-      const data = await api.get<{ students: ClassStudent[] }>(`/tenant/classes/${id}/students`, { tenant: slug });
+      const data = await api.get<{ students: BatchStudent[] }>(`/tenant/classes/${id}/students`, { tenant: slug });
       setStudents(data.students);
     } catch (err) {
       setStudentsError(err instanceof Error ? err.message : "Failed to load students");
@@ -275,8 +283,8 @@ function ClassDetailInner() {
     if (!tenant) return;
     setEnrollmentActing(studentId);
     try {
-      await api.patch(`/tenant/classes/${classId}/students/${studentId}`, { action }, { tenant: tenant.slug });
-      await loadStudents(tenant.slug, classId);
+      await api.patch(`/tenant/classes/${batchId}/students/${studentId}`, { action }, { tenant: tenant.slug });
+      await loadStudents(tenant.slug, batchId);
     } catch (err) {
       setStudentsError(err instanceof Error ? err.message : "Failed to update enrollment");
     } finally {
@@ -288,7 +296,7 @@ function ClassDetailInner() {
     if (!tenant) return;
     setConfirmRemoveId(null);
     try {
-      await api.delete(`/tenant/classes/${classId}/students/${studentId}`, { tenant: tenant.slug });
+      await api.delete(`/tenant/classes/${batchId}/students/${studentId}`, { tenant: tenant.slug });
       setStudents((prev) => prev.filter((s) => s.studentId !== studentId));
     } catch (err) {
       setStudentsError(err instanceof Error ? err.message : "Failed to remove student");
@@ -309,25 +317,27 @@ function ClassDetailInner() {
   );
 
   // Sharing a code is the one join-code job done often, so it stays one click
-  // away in the header; creating/revoking them lives in Class settings.
+  // away in the header; creating/revoking them lives in Batch settings.
   const activeJoinCode = joinCodes.find(
     (jc) => !jc.revoked && jc.usedCount < jc.maxUses && (jc.expiresAt === null || new Date(jc.expiresAt) > new Date()),
   );
 
   // ── Render ────────────────────────────────────────────────────────────────
 
-  if (!user || clsLoading) {
+  if (!user || batchLoading) {
     return (
       <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, color: pageError ? "var(--danger)" : "var(--text-muted)" }}>
         {pageError || "Loading…"}
       </div>
     );
   }
-  if (!cls) return null;
+  if (!batch) return null;
 
-  const canManage = role === "coaching_owner" || role === "teacher";
+  const isOwner = role === "coaching_owner";
+  // Owner and assigned teachers see the roster; only the owner acts on it.
+  const canViewRoster = isOwner || role === "teacher";
 
-  const studentCell = (s: ClassStudent) => (
+  const studentCell = (s: BatchStudent) => (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <Avatar name={s.name} size={28} />
       <div>
@@ -337,7 +347,7 @@ function ClassDetailInner() {
     </div>
   );
 
-  const removeCell = (s: ClassStudent) =>
+  const removeCell = (s: BatchStudent) =>
     confirmRemoveId === s.studentId ? (
       <span style={{ display: "inline-flex", gap: 6 }}>
         <Button variant="danger" size="sm" onClick={() => handleRemoveStudent(s.studentId)}>Confirm</Button>
@@ -347,62 +357,62 @@ function ClassDetailInner() {
       <Button variant="ghost" size="sm" style={{ color: "var(--danger)" }} onClick={() => setConfirmRemoveId(s.studentId)}>Remove</Button>
     );
 
-  const approvedColumns: Column<ClassStudent>[] = [
+  const approvedColumns: Column<BatchStudent>[] = [
     { key: "name", label: "Student", render: studentCell },
     { key: "enrolled", label: "Enrolled", render: (s) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{new Date(s.enrolledAt).toLocaleDateString()}</span> },
-    { key: "act", label: "", render: removeCell },
+    ...(isOwner ? [{ key: "act", label: "", render: removeCell }] : []),
   ];
 
-  const pendingColumns: Column<ClassStudent>[] = [
+  const pendingColumns: Column<BatchStudent>[] = [
     { key: "name", label: "Student", render: studentCell },
     { key: "req", label: "Requested", render: (s) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{new Date(s.enrolledAt).toLocaleDateString()}</span> },
-    { key: "act", label: "", render: (s) => (
+    ...(isOwner ? [{ key: "act", label: "", render: (s: BatchStudent) => (
       <div style={{ display: "flex", gap: 6 }}>
         <Button variant="app" size="sm" disabled={enrollmentActing === s.studentId} onClick={() => handleEnrollmentAction(s.studentId, "approve")}>Approve</Button>
         <Button variant="ghost" size="sm" style={{ color: "var(--danger)" }} disabled={enrollmentActing === s.studentId} onClick={() => handleEnrollmentAction(s.studentId, "reject")}>Reject</Button>
       </div>
-    ) },
+    ) }] : []),
   ];
 
-  const rejectedColumns: Column<ClassStudent>[] = [
+  const rejectedColumns: Column<BatchStudent>[] = [
     { key: "name", label: "Student", render: studentCell },
     { key: "date", label: "Date", render: (s) => <span style={{ fontSize: 13, color: "var(--text-muted)" }}>{new Date(s.enrolledAt).toLocaleDateString()}</span> },
-    { key: "act", label: "", render: (s) => (
+    ...(isOwner ? [{ key: "act", label: "", render: (s: BatchStudent) => (
       <Button variant="secondary" size="sm" disabled={enrollmentActing === s.studentId} onClick={() => handleEnrollmentAction(s.studentId, "approve")}>Re-admit</Button>
-    ) },
+    ) }] : []),
   ];
 
   const columns = rosterTab === "Approved" ? approvedColumns : rosterTab === "Pending" ? pendingColumns : rejectedColumns;
 
   return (
-    <TeacherShell tenant={tenant} user={user} role={role} active="classes">
+    <TeacherShell tenant={tenant} user={user} role={role} active="batches">
       {/* Breadcrumb + header */}
       <div style={{ marginBottom: 20 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10, fontSize: 13 }}>
-          <button onClick={() => router.push("/coaching/classes")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0, fontFamily: "var(--font-body)", fontSize: 13 }}>My Classes</button>
+          <button onClick={() => router.push("/coaching/batches")} style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", padding: 0, fontFamily: "var(--font-body)", fontSize: 13 }}>{isOwner ? "Batches" : "My Batches"}</button>
           <span style={{ color: "var(--text-muted)" }}>›</span>
-          <span style={{ color: "var(--text-muted)" }}>{cls.name}</span>
+          <span style={{ color: "var(--text-muted)" }}>{batch.name}</span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           <div style={{ width: 48, height: 48, borderRadius: 12, background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700, fontFamily: "var(--font-sans)", color: "var(--accent)", flexShrink: 0 }}>
-            {initials(cls.name)}
+            {initials(batch.name)}
           </div>
           <div>
-            <h2 style={{ margin: "0 0 4px", fontSize: 22, letterSpacing: "-0.02em" }}>{cls.name}</h2>
+            <h2 style={{ margin: "0 0 4px", fontSize: 22, letterSpacing: "-0.02em" }}>{batch.name}</h2>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {cls.grade && <Badge tone="accent">{cls.grade}</Badge>}
+              {batch.grade && <Badge tone="accent">{batch.grade}</Badge>}
               <Badge tone="neutral">{counts.approved} students</Badge>
               {counts.pending > 0 && <Badge tone="warning">{counts.pending} pending</Badge>}
-              <Badge tone={cls.autoApprove ? "success" : "warning"}>{cls.autoApprove ? "Auto-approve" : "Manual"}</Badge>
+              <Badge tone={batch.autoApprove ? "success" : "warning"}>{batch.autoApprove ? "Auto-approve" : "Manual"}</Badge>
             </div>
           </div>
           <div style={{ flex: 1 }} />
-          {canManage && activeJoinCode && (
+          {isOwner && activeJoinCode && (
             <Button variant="ghost" size="sm" onClick={() => copyJoinLink(activeJoinCode)}>
               {copiedJcId === activeJoinCode.id ? "Copied!" : `Copy join link · ${activeJoinCode.code}`}
             </Button>
           )}
-          {canManage && <Button variant="secondary" size="sm" onClick={() => { setConfirmDelete(false); setEditOpen(true); }}>Class settings</Button>}
+          {isOwner && <Button variant="secondary" size="sm" onClick={() => { setConfirmDelete(false); setEditOpen(true); }}>Batch settings</Button>}
         </div>
       </div>
 
@@ -410,7 +420,27 @@ function ClassDetailInner() {
         <p style={{ color: "var(--danger)", fontSize: 13, marginBottom: 16, padding: "10px 14px", border: "1px solid rgba(244,63,94,0.35)", background: "var(--danger-soft)", borderRadius: "var(--radius-md)" }}>{pageError}</p>
       )}
 
-      {canManage ? (
+      {/* Teachers — visible to staff; the owner assigns */}
+      {canViewRoster && (
+        <div className="gv-card" style={{ padding: "14px 20px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-heading)", fontFamily: "var(--font-sans)" }}>Teachers</div>
+          <div style={{ flex: 1, display: "flex", gap: 12, flexWrap: "wrap", minWidth: 0 }}>
+            {batch.teachers.length === 0 ? (
+              <Badge tone="warning">No teacher assigned</Badge>
+            ) : (
+              batch.teachers.map((t) => (
+                <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-body)" }}>
+                  <Avatar name={t.name} size={22} />
+                  {t.name}
+                </span>
+              ))
+            )}
+          </div>
+          {isOwner && <Button variant="secondary" size="sm" onClick={openTeachers}>Manage teachers</Button>}
+        </div>
+      )}
+
+      {canViewRoster ? (
         <div className="gv-card" style={{ overflow: "hidden" }}>
           <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--border-light)", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
             <h4 style={{ margin: 0, flex: 1, fontSize: 16 }}>Student roster</h4>
@@ -430,15 +460,15 @@ function ClassDetailInner() {
         </div>
       ) : (
         <div className="gv-card" style={{ padding: 24 }}>
-          <p style={{ margin: 0, fontSize: 14, color: "var(--text-body)", fontFamily: "var(--font-body)" }}>{cls.description ?? "No description."}</p>
+          <p style={{ margin: 0, fontSize: 14, color: "var(--text-body)", fontFamily: "var(--font-body)" }}>{batch.description ?? "No description."}</p>
         </div>
       )}
 
       {/* Settings modal */}
-      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Class settings" width={520}>
+      <Modal open={isOwner && editOpen} onClose={() => setEditOpen(false)} title="Batch settings" width={520}>
           <form onSubmit={handleEditSave} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <Input label="Name" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} required minLength={2} maxLength={255} />
-            <Input label="Grade" placeholder="e.g. Class 11" value={editForm.grade} onChange={(e) => setEditForm({ ...editForm, grade: e.target.value })} maxLength={50} />
+            <Input label="Grade" placeholder="e.g. 11th" value={editForm.grade} onChange={(e) => setEditForm({ ...editForm, grade: e.target.value })} maxLength={50} />
             <label style={{ display: "block" }}>
               <span className="gv-label">Description</span>
               <textarea maxLength={1000} rows={3} value={editForm.description} onChange={(e) => setEditForm({ ...editForm, description: e.target.value })} className="gv-input" style={{ height: "auto", padding: "10px 14px", resize: "vertical" }} />
@@ -461,7 +491,7 @@ function ClassDetailInner() {
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-heading)", fontFamily: "var(--font-sans)" }}>Join codes</div>
                 <div style={{ fontSize: 12.5, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                  Share a code or its link to let students enrol in this class.
+                  Share a code or its link to let students enrol in this batch.
                 </div>
               </div>
               <Button type="button" variant="secondary" size="sm" style={{ flexShrink: 0 }} onClick={() => setShowJcForm((v) => !v)}>
@@ -517,48 +547,18 @@ function ClassDetailInner() {
             </div>
           </div>
 
-          {/* Reassign teacher — owner only */}
-          {role === "coaching_owner" && (
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border-light)" }}>
-                <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--text-heading)", fontFamily: "var(--font-sans)" }}>Reassign teacher</div>
-                <div style={{ fontSize: 12.5, color: "var(--text-muted)", fontFamily: "var(--font-body)", marginBottom: 10 }}>
-                  {(() => {
-                    const current = teacherOptions.find((t) => t.userId === cls.teacherId)?.name;
-                    return current
-                      ? `Currently ${current}. Move this batch and its students to another teacher.`
-                      : "Move this batch and its students to another teacher.";
-                  })()}
-                </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-                  <Select
-                    wrapperStyle={{ flex: 1 }}
-                    value={reassignTo}
-                    onChange={(e) => setReassignTo(e.target.value)}
-                    options={[
-                      { value: "", label: "Select a teacher…" },
-                      ...teacherOptions.filter((t) => t.userId !== cls.teacherId).map((t) => ({ value: t.userId, label: t.name })),
-                    ]}
-                  />
-                  <Button type="button" variant="secondary" size="sm" disabled={reassigning || !reassignTo} onClick={handleReassign}>
-                    {reassigning ? "Reassigning…" : "Reassign"}
-                  </Button>
-                </div>
-                {reassignErr && <p style={{ margin: "8px 0 0", color: "var(--danger)", fontSize: 13 }}>{reassignErr}</p>}
-              </div>
-            )}
-
           {/* Danger zone */}
           <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--border-light)" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--danger)", fontFamily: "var(--font-sans)" }}>Delete this class</div>
+                  <div style={{ fontSize: 13.5, fontWeight: 700, color: "var(--danger)", fontFamily: "var(--font-sans)" }}>Delete this batch</div>
                   <div style={{ fontSize: 12.5, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
-                    Removes the class, its join codes, and all enrollments. This cannot be undone.
+                    Removes the batch, its join codes, enrollments and teacher assignments. This cannot be undone.
                   </div>
                 </div>
                 {confirmDelete ? (
                   <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                    <Button type="button" variant="danger" size="sm" disabled={deleting} onClick={handleDeleteClass}>
+                    <Button type="button" variant="danger" size="sm" disabled={deleting} onClick={handleDeleteBatch}>
                       {deleting ? "Deleting…" : "Confirm"}
                     </Button>
                     <Button type="button" variant="ghost" size="sm" disabled={deleting} onClick={() => setConfirmDelete(false)}>Cancel</Button>
@@ -569,13 +569,28 @@ function ClassDetailInner() {
               </div>
           </div>
       </Modal>
+
+      {/* Teachers modal — owner only */}
+      <Modal open={isOwner && teachersOpen} onClose={() => setTeachersOpen(false)} title="Assign teachers" width={480}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            Assigned teachers see this batch in My Batches, can view its roster, and can set exams for it. Only you manage students and settings.
+          </p>
+          <TeacherPicker options={teacherOptions} value={teacherDraft} onChange={setTeacherDraft} disabled={savingTeachers} />
+          {teachersErr && <p style={{ margin: 0, color: "var(--danger)", fontSize: 13 }}>{teachersErr}</p>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <Button type="button" variant="ghost" onClick={() => setTeachersOpen(false)}>Cancel</Button>
+            <Button type="button" variant="app" disabled={savingTeachers} onClick={handleSaveTeachers}>{savingTeachers ? "Saving…" : "Save"}</Button>
+          </div>
+        </div>
+      </Modal>
     </TeacherShell>
   );
 }
 
 // ── Suspense wrapper (required for useSearchParams) ──────────────────────────
 
-export default function ClassDetailPage() {
+export default function BatchDetailPage() {
   return (
     <Suspense
       fallback={
@@ -584,7 +599,7 @@ export default function ClassDetailPage() {
         </div>
       }
     >
-      <ClassDetailInner />
+      <BatchDetailInner />
     </Suspense>
   );
 }
