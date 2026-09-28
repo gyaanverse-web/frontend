@@ -12,7 +12,7 @@ import { Logo, Button } from "@/components/ui";
 const PAGE_BG =
   "radial-gradient(ellipse 70% 50% at 50% 0%, #eef0fc 0%, var(--paper-50) 60%)";
 
-type ClassPreview = {
+type BatchPreview = {
   id: string;
   name: string;
   grade: string | null;
@@ -20,26 +20,26 @@ type ClassPreview = {
 };
 
 /**
- * Redeem a *class* (batch) join code shared as a link. This is distinct from
+ * Redeem a *batch* join code shared as a link. This is distinct from
  * the coaching join page at /join/[code]:
  *   - /join/[code]        → coaching_join_codes  (join the institute)
- *   - /join/class/[code]  → join_codes           (join one batch)
+ *   - /join/batch/[code]  → join_codes           (join one batch)
  *
  * Both live under /join rather than in a role area: the person clicking one is
  * not yet in either area, and the link is shared out-of-band.
  *
- * The backend class-join routes derive tenant + class from the code itself
+ * The backend batch-join routes derive tenant + batch from the code itself
  * (auth only, no tenant middleware), so this page works on any host. The one
  * hard requirement is that the student already be a member of the coaching —
  * the API returns NOT_A_MEMBER (403) otherwise, which we surface with a link
  * to the coaching-join step.
  */
-export default function JoinClassByCodePage() {
+export default function JoinBatchByCodePage() {
   const router = useRouter();
   const params = useParams();
   const code = ((params?.code as string) ?? "").toUpperCase();
 
-  const [preview, setPreview]     = useState<ClassPreview | null>(null);
+  const [preview, setPreview]     = useState<BatchPreview | null>(null);
   const [previewErr, setPreviewErr] = useState("");
   const [loggedIn, setLoggedIn]   = useState<boolean | null>(null);
   const [joining, setJoining]     = useState(false);
@@ -50,7 +50,7 @@ export default function JoinClassByCodePage() {
   useEffect(() => {
     if (!code) return;
     Promise.allSettled([
-      api.get<{ class: ClassPreview }>(`/tenant/classes/join/${code}`),
+      api.get<{ class: BatchPreview }>(`/tenant/classes/join/${code}`),
       getSession(),
     ]).then(([pr, sr]) => {
       if (pr.status === "fulfilled") {
@@ -68,15 +68,15 @@ export default function JoinClassByCodePage() {
       const res = await api.post<{ message?: string; status?: string }>(`/tenant/classes/join/${code}`, {});
       invalidateSession();
       setJoinedMsg(res.message ?? "Joined successfully!");
-      // Joining by code is a student action, so land them on their own classes
+      // Joining by code is a student action, so land them on their own batches
       // screen — the old target was the staff dashboard's batches section.
-      setTimeout(() => { void postAuthRedirect(router, { fallbackPath: "/student/classes" }); }, 1500);
+      setTimeout(() => { void postAuthRedirect(router, { fallbackPath: "/student/batches" }); }, 1500);
     } catch (err) {
       if (err instanceof ApiError && err.status === 403) {
         // NOT_A_MEMBER — student hasn't joined the coaching yet.
         setNotMember(true);
       } else {
-        setJoinErr(err instanceof Error ? err.message : "Failed to join class");
+        setJoinErr(err instanceof Error ? err.message : "Failed to join batch");
       }
     } finally {
       setJoining(false);
@@ -150,7 +150,7 @@ export default function JoinClassByCodePage() {
                 letterSpacing: "0.08em",
               }}
             >
-              You&apos;ve been invited to join the class
+              You&apos;ve been invited to join the batch
             </p>
             <h1 style={{ margin: "0 0 8px", fontSize: 24, fontWeight: 700, color: "var(--text-heading)" }}>
               {preview.name}
@@ -192,7 +192,7 @@ export default function JoinClassByCodePage() {
                   color: "var(--text-body)",
                 }}
               >
-                This class needs teacher approval — your request will be reviewed after you join.
+                This batch needs teacher approval — your request will be reviewed after you join.
               </p>
             )}
 
@@ -223,7 +223,7 @@ export default function JoinClassByCodePage() {
                     color: "var(--text-body)",
                   }}
                 >
-                  You need to join the coaching institute before enrolling in one of its classes. Ask your coaching owner for the institute join code, then come back to this link.
+                  You need to join the coaching institute before enrolling in one of its batches. Ask your coaching owner for the institute join code, then come back to this link.
                 </p>
                 <Link href="/join" className="gv-btn gv-btn--app gv-btn--md">
                   Enter coaching code
@@ -234,7 +234,7 @@ export default function JoinClassByCodePage() {
                 <p style={{ margin: "0 0 16px", fontSize: 14, color: "var(--text-body)" }}>
                   You need to be logged in to join.
                 </p>
-                <Link href={`/login?next=/join/class/${code}`} className="gv-btn gv-btn--app gv-btn--md">
+                <Link href={`/login?next=/join/batch/${code}`} className="gv-btn gv-btn--app gv-btn--md">
                   Log in to Join
                 </Link>
               </div>

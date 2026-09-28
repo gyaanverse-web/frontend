@@ -82,21 +82,27 @@ export type CoachingJoinCode = {
   createdAt: string;
 };
 
-export type Class = {
+/** A teacher assigned to a batch by the owner. A batch may have several, or none. */
+export type BatchTeacher = { id: string; name: string };
+
+/**
+ * A batch. The backend still calls this a class — its routes (`/tenant/classes`)
+ * and payload keys (`classes`, `classId`) are unchanged, and the API seam is the
+ * only place that name survives in this app.
+ */
+export type Batch = {
   id: string;
   tenantId: string;
-  teacherId: string;
   name: string;
   grade: string | null;
   description: string | null;
   autoApprove: boolean;
   createdAt: string;
   updatedAt: string;
+  teachers: BatchTeacher[];
   // Present on staff-facing listings (owner / teacher); absent for students.
   studentCount?: number;
   pendingCount?: number;
-  // Present only on the owner's all-classes listing — who owns each batch.
-  teacherName?: string | null;
 };
 
 // Lifecycle status re-exported from the single source of truth in lib/examStatus.

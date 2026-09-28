@@ -74,7 +74,7 @@ export async function postAuthRedirect(
       //
       // Only the bare `/coaching/dashboard` default is overridden. A caller that named a
       // destination — a ?next= invite link, or an explicit fallbackPath like
-      // /student/classes after a join — knows something more specific than
+      // /student/batches after a join — knows something more specific than
       // "you meant to run a coaching once", so it wins.
       const named = explicitNext !== null || opts.fallbackPath !== undefined;
       const noTenantPath = named ? path : (await pendingOwnerPath()) ?? path;

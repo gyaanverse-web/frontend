@@ -11,7 +11,7 @@ import { NO_BILLING, type Entitlements } from "@/lib/entitlements";
 export type AppNavKey =
   | "dashboard"
   | "home"
-  | "classes"
+  | "batches"
   | "exams"
   | "approvals"
   | "results"
@@ -21,6 +21,7 @@ export type AppNavKey =
   | "test-engine"
   | "subjects"
   | "teachers"
+  | "fees"
   | "members"
   | "invites"
   | "plan"
@@ -122,15 +123,16 @@ export function buildAppNav(role: string): NavEntry[] {
       { key: "home", label: "Home", icon: "layout-dashboard", href: "/student" },
       { key: "exams", label: "My Exams", icon: "file-text", href: "/student/exams" },
       { key: "results", label: "My Results", icon: "chart-column", href: "/student/results" },
-      { key: "classes", label: "My Classes", icon: "graduation-cap", href: "/student/classes" },
+      { key: "batches", label: "My Batches", icon: "graduation-cap", href: "/student/batches" },
+      { key: "fees", label: "My Fees", icon: "wallet", href: "/student/fees" },
       { key: "marketplace", label: "Marketplace", icon: "store", href: "/student/marketplace" },
     ];
   }
 
   const nav: NavEntry[] = [
     { key: "dashboard", label: "Dashboard", icon: "layout-dashboard", href: "/coaching/dashboard" },
-    // Owner sees every teacher's batch, so it's just "Classes"; a teacher sees only their own → "My Classes".
-    { key: "classes", label: isOwner ? "Classes" : "My Classes", icon: "graduation-cap", href: "/coaching/classes" },
+    // Owner runs every batch, so it's just "Batches"; a teacher sees only the batches assigned to them → "My Batches".
+    { key: "batches", label: isOwner ? "Batches" : "My Batches", icon: "graduation-cap", href: "/coaching/batches" },
     { section: "Assessments" },
     { key: "exams", label: "Exams", icon: "file-text", href: "/coaching/exams" },
     // Owner-only approval + live-monitor hub, sits right under Exams.
@@ -144,6 +146,10 @@ export function buildAppNav(role: string): NavEntry[] {
     // lists the signed-in user's own, so staff only ever saw "You haven't taken any
     // exams yet". Staff analysis is per-exam — the reports panel on
     // /coaching/exams/:id — and is reached by opening the exam, not the sidebar.
+    // Owner-only: every /tenant/fees/* catalogue/settings route requires the
+    // coaching_owner membership role, so a teacher here would see a menu that
+    // 403s on every request behind it.
+    ...(isOwner ? [{ section: "Finance" }, { key: "fees" as const, label: "Fees", icon: "wallet" as const, href: "/coaching/fees" }] : []),
     { section: "Manage" },
     { key: "members", label: "Members", icon: "users", href: dash("Members") },
   ];

@@ -49,10 +49,10 @@ export default function TeachersPage() {
     return (teachers ?? []).reduce(
       (acc, t) => ({
         students: acc.students + t.studentCount,
-        classes: acc.classes + t.classCount,
+        batches: acc.batches + t.classCount,
         exams: acc.exams + t.examCount,
       }),
-      { students: 0, classes: 0, exams: 0 },
+      { students: 0, batches: 0, exams: 0 },
     );
   }, [teachers]);
 
@@ -109,7 +109,7 @@ export default function TeachersPage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 22 }}>
         <StatCard label="Teachers" value={teachers?.length ?? 0} />
         <StatCard label="Students taught" value={totals.students} sub="approved, across all batches" />
-        <StatCard label="Batches" value={totals.classes} />
+        <StatCard label="Batches" value={totals.batches} />
         <StatCard label="Exams authored" value={totals.exams} />
       </div>
 

@@ -6,7 +6,7 @@ import { Card, Badge, Button, Icon, Eyebrow } from "@/components/ui";
 import type { IconName } from "@/components/ui";
 import { fmtLimit } from "@/lib/entitlements";
 import type { Entitlements } from "@/lib/entitlements";
-import type { Tenant, Member, Class, Exam } from "../types";
+import type { Tenant, Member, Batch, Exam } from "../types";
 import { examStatusLabel } from "@/lib/examStatus";
 
 /**
@@ -48,7 +48,7 @@ function relativeTime(ts: number): string {
 
 export function OverviewSection({ tenant, isOwner, entitlements, onNavigate }: Props) {
   const [members, setMembers] = useState<Member[] | null>(null);
-  const [classes, setClasses] = useState<Class[] | null>(null);
+  const [batches, setBatches] = useState<Batch[] | null>(null);
   const [exams, setExams] = useState<Exam[] | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -56,11 +56,11 @@ export function OverviewSection({ tenant, isOwner, entitlements, onNavigate }: P
     const opts = { tenant: tenant.slug };
     Promise.allSettled([
       api.get<{ members: Member[] }>("/tenant/members", opts),
-      api.get<{ classes: Class[] }>("/tenant/classes", opts),
+      api.get<{ classes: Batch[] }>("/tenant/classes", opts),
       api.get<{ exams: Exam[] }>("/tenant/exams", opts),
     ]).then(([m, c, e]) => {
       if (m.status === "fulfilled") setMembers(m.value.members);
-      if (c.status === "fulfilled") setClasses(c.value.classes);
+      if (c.status === "fulfilled") setBatches(c.value.classes);
       if (e.status === "fulfilled") setExams(e.value.exams);
       setLoading(false);
     });
@@ -75,7 +75,7 @@ export function OverviewSection({ tenant, isOwner, entitlements, onNavigate }: P
 
   const studentCount = members?.filter((m) => m.role === "student").length ?? null;
   const teacherCount = members?.filter((m) => m.role === "teacher").length ?? null;
-  const batchCount = classes?.length ?? null;
+  const batchCount = batches?.length ?? null;
 
   const now = new Date();
   const mocksThisMonth =

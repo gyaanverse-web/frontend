@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import { Card, Icon } from "@/components/ui";
 
 /**
- * Shown on the screens that genuinely need a coaching (My Exams, My Classes)
+ * Shown on the screens that genuinely need a coaching (My Exams, My Batches)
  * when the student hasn't joined one. Deliberately not a blocker: it explains
  * what a join code is and points at the marketplace, which works standalone.
  */

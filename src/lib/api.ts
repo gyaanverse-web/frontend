@@ -1,4 +1,5 @@
 import { slugFromHost, hasTenantContext } from "./domain";
+import { getActiveTenantSlug } from "./activeTenant";
 
 const FALLBACK_API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -27,18 +28,34 @@ function resolveApiUrl(): string {
 }
 
 /**
- * Derive the tenant slug from the current browser hostname, or `null` on the
- * app/root host, during SSR, or when nothing resolves — callers omit the
- * `X-Tenant-Slug` header entirely rather than send a placeholder. See
- * `slugFromHost` in lib/domain.ts for the environment-aware resolution rules.
+ * The tenant slug to send, or `null` when there is genuinely no coaching —
+ * callers then omit the `X-Tenant-Slug` header entirely rather than send a
+ * placeholder.
  *
- * Previously fell back to the literal `"dev"`, which is a reserved slug that
- * always 404s — every no-tenant request (e.g. the public marketplace) sent a
- * header guaranteed to fail tenant resolution, silently swallowed by the UI.
+ * Resolution order:
+ *  1. The hostname. Authoritative when it names a tenant: the URL is what the
+ *     user can see, and `<slug>.<root>` is the whole point of the model. See
+ *     `slugFromHost` in lib/domain.ts for the environment-aware rules.
+ *  2. The coaching the *session* resolved to (`lib/activeTenant`). This is the
+ *     app host / apex / `localhost` case, where the hostname carries no slug
+ *     but `/tenants/me` still answers with the user's membership — without this
+ *     the page renders a coaching whose every `/tenant/*` call comes back
+ *     "Could not resolve tenant from request". Student screens live on this
+ *     branch; staff screens pass `{ tenant }` explicitly and never reach it.
+ *  3. `NEXT_PUBLIC_TENANT_SLUG`, for tooling with no browser at all.
+ *
+ * Previously stopped after (1) and fell back to the literal `"dev"`, a reserved
+ * slug that always 404s — every no-tenant request (e.g. the public marketplace)
+ * sent a header guaranteed to fail, silently swallowed by the UI.
  */
 export function resolveTenantSlug(): string | null {
   if (typeof window === "undefined") return FALLBACK_TENANT_SLUG ?? null;
-  return slugFromHost(window.location.hostname) ?? FALLBACK_TENANT_SLUG ?? null;
+  return (
+    slugFromHost(window.location.hostname) ??
+    getActiveTenantSlug() ??
+    FALLBACK_TENANT_SLUG ??
+    null
+  );
 }
 
 export class ApiError extends Error {
@@ -61,6 +78,8 @@ type RequestOptions = {
   method?: string;
   body?: unknown;
   tenant?: string;
+  /** Extra request headers, e.g. `Idempotency-Key` on fee payments. */
+  headers?: Record<string, string>;
 };
 
 // Concurrent GET requests to the same URL share one in-flight promise instead
@@ -111,7 +130,7 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   // tenantMiddleware reads X-Tenant-Slug; routes without that middleware
   // (auth, global) ignore it harmlessly. This lets us drop the old
   // `/tenant/`-prefix gate that was needed for the ?tenant= query param.
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { ...opts.headers };
   if (body) headers["Content-Type"] = "application/json";
   if (slug) headers["X-Tenant-Slug"] = slug;
 
@@ -146,6 +165,30 @@ export const api = {
 
   delete: <T>(path: string, opts?: Omit<RequestOptions, "method" | "body">) =>
     request<T>(path, { ...opts, method: "DELETE" }),
+
+  /** DELETE with a JSON body — for routes that require a reason, like reversing a fee concession. */
+  deleteWithBody: <T>(path: string, body: unknown, opts?: Omit<RequestOptions, "method" | "body">) =>
+    request<T>(path, { ...opts, method: "DELETE", body }),
+
+  /**
+   * GET a non-JSON body as text — the printable receipt page. It can't simply be
+   * opened in a new tab: the route needs the session cookie AND the
+   * X-Tenant-Slug header, and a plain navigation sends no custom headers.
+   */
+  getText: async (path: string, opts?: { tenant?: string }): Promise<string> => {
+    const url = new URL(path, resolveApiUrl());
+    const slug = opts?.tenant ?? resolveTenantSlug();
+    const res = await fetch(url.toString(), {
+      credentials: "include",
+      headers: slug ? { "X-Tenant-Slug": slug } : {},
+    });
+    if (!res.ok) {
+      if (res.status === 401) onUnauthorized?.();
+      const data = await res.json().catch(() => null);
+      throw new ApiError(data?.message ?? `HTTP ${res.status}`, res.status, data?.code);
+    }
+    return res.text();
+  },
 
   /**
    * Fire-and-forget PUT that survives the page going away.

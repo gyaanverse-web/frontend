@@ -22,8 +22,8 @@ const ROLES = ["coaching_owner", "teacher", "student"] as const;
 
 describe("buildAppNav", () => {
   describe("coaching_owner", () => {
-    it('labels the classes link "Classes" (owner sees every teacher\'s batch)', () => {
-      expect(labelFor("coaching_owner", "classes")).toBe("Classes");
+    it('labels the batches link "Batches" (owner sees every teacher\'s batch)', () => {
+      expect(labelFor("coaching_owner", "batches")).toBe("Batches");
     });
 
     it("exposes the owner-only surfaces", () => {
@@ -53,8 +53,8 @@ describe("buildAppNav", () => {
   });
 
   describe("teacher", () => {
-    it('labels the classes link "My Classes" (teacher sees only their own)', () => {
-      expect(labelFor("teacher", "classes")).toBe("My Classes");
+    it('labels the batches link "My Batches" (teacher sees only their own)', () => {
+      expect(labelFor("teacher", "batches")).toBe("My Batches");
     });
 
     it("does NOT expose owner-only surfaces (teachers/invites/plan/settings/danger)", () => {
@@ -68,7 +68,7 @@ describe("buildAppNav", () => {
 
     it("still gets the shared staff surfaces", () => {
       const k = keys("teacher");
-      expect(k).toEqual(expect.arrayContaining(["dashboard", "classes", "exams", "question-bank", "members"]));
+      expect(k).toEqual(expect.arrayContaining(["dashboard", "batches", "exams", "question-bank", "members"]));
     });
   });
 
@@ -108,12 +108,12 @@ describe("buildAppNav", () => {
       // No "account" here: it is pinned in the sidebar footer for every role,
       // outside the nav list. See ACCOUNT_ENTRY.
       expect(keys("student")).toEqual([
-        "home", "exams", "results", "classes", "marketplace",
+        "home", "exams", "results", "batches", "fees", "marketplace",
       ]);
     });
 
-    it('keeps the classes label as "My Classes"', () => {
-      expect(labelFor("student", "classes")).toBe("My Classes");
+    it('keeps the batches label as "My Batches"', () => {
+      expect(labelFor("student", "batches")).toBe("My Batches");
     });
 
     // The student area is real routes under /student, not ?screen= on the staff
@@ -125,7 +125,8 @@ describe("buildAppNav", () => {
         home: "/student",
         exams: "/student/exams",
         results: "/student/results",
-        classes: "/student/classes",
+        batches: "/student/batches",
+        fees: "/student/fees",
         marketplace: "/student/marketplace",
       });
     });

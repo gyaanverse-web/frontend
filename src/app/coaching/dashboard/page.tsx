@@ -27,7 +27,7 @@ import {
 // Staff-only page: students live at /student and are redirected out below.
 //
 // Sections still reachable in-page; the sidebar links here via ?screen=<Name>.
-// "Batches" and "Exams" used to be here too, duplicating the real /classes and
+// "Batches" and "Exams" used to be here too, duplicating the real /batches and
 // /exams routes the sidebar actually points at — nothing linked to the in-page
 // copies, so they and their sections were deleted rather than migrated.
 //

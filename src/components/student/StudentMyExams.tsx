@@ -224,7 +224,7 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
       <div style={{ maxWidth: 1080, margin: "0 auto" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 22 }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--text-muted)" }}>
-            Assigned via your classes
+            Assigned via your batches
           </div>
           <h2 style={{ fontSize: 26, margin: 0 }}>My exams</h2>
         </div>
@@ -259,7 +259,7 @@ export function StudentMyExams({ user, tenant }: { user: ShellUser; tenant: Shel
               {tab === "upcoming"
                 ? "No scheduled exams right now — new tests appear here once your teacher schedules them."
                 : tab === "todo"
-                  ? "You're all caught up. Exams assigned to your classes will show up here when they open."
+                  ? "You're all caught up. Exams assigned to your batches will show up here when they open."
                   : "No exams in this bucket yet."}
             </p>
           </div>

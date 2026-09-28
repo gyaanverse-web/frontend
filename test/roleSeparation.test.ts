@@ -35,7 +35,7 @@ describe("buildAppNav — authoring is a teacher capability", () => {
       const k = keys(buildAppNav(role));
       expect(k).toContain("exams");
       expect(k).toContain("question-bank");
-      expect(k).toContain("classes");
+      expect(k).toContain("batches");
     }
   });
 

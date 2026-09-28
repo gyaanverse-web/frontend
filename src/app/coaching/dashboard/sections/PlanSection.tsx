@@ -54,7 +54,7 @@ export function PlanSection({ tenant, onTenantChange }: Props) {
                 <td style={{ ...cell, fontSize: "12px" }}>
                   Students: <strong>{fmtLimit(cur.limits.students)}</strong>
                   &ensp;Teachers: <strong>{fmtLimit(cur.limits.teachers)}</strong>
-                  &ensp;Classes: <strong>{fmtLimit(cur.limits.classes)}</strong>
+                  &ensp;Batches: <strong>{fmtLimit(cur.limits.classes)}</strong>
                   &ensp;Mocks/month: <strong>{fmtLimit(cur.limits.mocks_per_month)}</strong>
                   &ensp;AI Evals/month: <strong>{fmtLimit(cur.limits.ai_evaluations)}</strong>
                 </td>
