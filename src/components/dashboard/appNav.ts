@@ -12,6 +12,7 @@ export type AppNavKey =
   | "dashboard"
   | "home"
   | "batches"
+  | "students"
   | "exams"
   | "approvals"
   | "results"
@@ -133,6 +134,10 @@ export function buildAppNav(role: string): NavEntry[] {
     { key: "dashboard", label: "Dashboard", icon: "layout-dashboard", href: "/coaching/dashboard" },
     // Owner runs every batch, so it's just "Batches"; a teacher sees only the batches assigned to them → "My Batches".
     { key: "batches", label: isOwner ? "Batches" : "My Batches", icon: "graduation-cap", href: "/coaching/batches" },
+    // Students is the front door to a person, where Batches is the front door to
+    // a group — a teacher's list is narrowed to students in their own batches, so
+    // the row is useful to both roles rather than owner-only.
+    { key: "students", label: isOwner ? "Students" : "My Students", icon: "user-round", href: "/coaching/students" },
     { section: "Assessments" },
     { key: "exams", label: "Exams", icon: "file-text", href: "/coaching/exams" },
     // Owner-only approval + live-monitor hub, sits right under Exams.

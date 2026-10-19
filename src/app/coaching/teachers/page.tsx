@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useTenantSession } from "@/lib/useTenantSession";
 import type { Tenant } from "../dashboard/types";
@@ -24,6 +25,7 @@ export default function TeachersPage() {
   const { loading, user, tenant, role } = useTenantSession<Tenant>({
     allow: ["coaching_owner"],
   });
+  const router = useRouter();
 
   // `null` means "not loaded yet" — the first render is already in its loading
   // state, so the mount effect never sets one synchronously.
@@ -122,7 +124,11 @@ export default function TeachersPage() {
           </p>
         </div>
       ) : (
-        <DataTable columns={columns} rows={teachers} />
+        <DataTable
+          columns={columns}
+          rows={teachers}
+          onRowClick={(t) => router.push(`/coaching/teachers/${t.userId}`)}
+        />
       )}
     </TeacherShell>
   );

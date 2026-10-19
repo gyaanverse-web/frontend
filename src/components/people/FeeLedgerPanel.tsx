@@ -1,10 +1,7 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
-import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { useTenantSession } from "@/lib/useTenantSession";
-import { TeacherShell } from "@/components/dashboard/TeacherShell";
 import { Badge, Button, Card, DataTable, Icon, Input, KebabMenu, Modal, Select, StatCard } from "@/components/ui";
 import type { Column, KebabItem } from "@/components/ui";
 import { ReceiptModal } from "@/components/fees/ReceiptModal";
@@ -21,18 +18,27 @@ import { RecordPaymentModal } from "./RecordPaymentModal";
 import { AdjustmentModal } from "./AdjustmentModal";
 import { GuardiansPanel } from "./GuardiansPanel";
 
-type Tenant = { id: string; slug: string; name: string };
+export interface FeeLedgerPanelProps {
+  tenantSlug: string;
+  studentId: string;
+  /** Shown on the printed receipt and in the payment dialog's heading. */
+  studentName: string;
+  /** Opens the Record-payment dialog on mount — the deep link from Payments. */
+  autoOpenPayment?: boolean;
+}
 
-function StudentLedgerInner() {
-  const params = useParams();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const studentId = params?.studentId as string;
-  const studentName = searchParams.get("name") ?? "Student";
-  const from = searchParams.get("from");
-
-  const { loading, user, tenant, role } = useTenantSession<Tenant>({ allow: ["coaching_owner"] });
-
+/**
+ * The owner's fee ledger for one student: installments, payments, adjustments,
+ * fee plans, concessions and guardians, with every write dialog it needs.
+ *
+ * Extracted from the standalone `/coaching/fees/students/[studentId]` route so
+ * it can be a TAB on the student profile instead of a second page about the same
+ * person. It therefore takes the tenant slug and the student as props and owns
+ * no routing, no session gate and no shell: the host screen has already resolved
+ * the session, checked for `coaching_owner`, and rendered the chrome. The money
+ * logic below is unchanged.
+ */
+export function FeeLedgerPanel({ tenantSlug, studentId, studentName, autoOpenPayment = false }: FeeLedgerPanelProps) {
   const [ledger, setLedger] = useState<StudentLedger | null>(null);
   const [structures, setStructures] = useState<FeeStructure[]>([]);
   const [error, setError] = useState("");
@@ -40,7 +46,7 @@ function StudentLedgerInner() {
 
   // Dialogs. The payment and adjustment modals are mounted fresh per opening
   // (see RecordPaymentModal on why the idempotency key depends on that).
-  const [payFor, setPayFor] = useState<{ invoiceId?: string } | null>(searchParams.get("action") === "pay" ? {} : null);
+  const [payFor, setPayFor] = useState<{ invoiceId?: string } | null>(autoOpenPayment ? {} : null);
   const [adjustPreset, setAdjustPreset] = useState<{ type: ManualAdjustmentType; invoiceId?: string } | null>(null);
   const [showConcession, setShowConcession] = useState(false);
   const [reasonPrompt, setReasonPrompt] = useState<ReasonPrompt | null>(null);
@@ -51,8 +57,7 @@ function StudentLedgerInner() {
   // Mount / student-change load — a plain promise chain, not a call into an
   // async helper, so nothing sets state synchronously within the effect body.
   useEffect(() => {
-    if (!tenant) return;
-    const slug = tenant.slug;
+    const slug = tenantSlug;
     let cancelled = false;
     Promise.all([
       api.get<StudentLedger>(`/tenant/fees/students/${studentId}/ledger`, { tenant: slug }),
@@ -65,22 +70,20 @@ function StudentLedgerInner() {
       })
       .catch((err) => { if (!cancelled) setError(errorMessage(err, "Failed to load ledger")); });
     return () => { cancelled = true; };
-  }, [tenant, studentId]);
+  }, [tenantSlug, studentId]);
 
   // Re-fetch after a write. Only ever called from event handlers — never from
   // an effect. Keeps the current ledger on screen while it loads.
   const refresh = useCallback(async () => {
-    if (!tenant) return;
     try {
-      setLedger(await api.get<StudentLedger>(`/tenant/fees/students/${studentId}/ledger`, { tenant: tenant.slug }));
+      setLedger(await api.get<StudentLedger>(`/tenant/fees/students/${studentId}/ledger`, { tenant: tenantSlug }));
       setError("");
     } catch (err) {
       setError(errorMessage(err, "Failed to reload ledger"));
     }
-  }, [tenant, studentId]);
+  }, [tenantSlug, studentId]);
 
-  if (loading || !user || !tenant) return <PageLoading />;
-  const slug = tenant.slug;
+  const slug = tenantSlug;
 
   const structureById = new Map(structures.map((s) => [s.id, s]));
   const invoiceById = new Map((ledger?.invoices ?? []).map((i) => [i.id, i]));
@@ -328,21 +331,16 @@ function StudentLedgerInner() {
   ];
 
   return (
-    <TeacherShell
-      tenant={tenant} user={user} role={role} active="fees" eyebrow="Fees · Student ledger"
-      title={studentName}
-      action={
-        ledger && (
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button variant="secondary" onClick={() => setAdjustPreset({ type: "waiver" })}>Add adjustment</Button>
-            <Button variant="app" icon={<Icon name="wallet" size={16} />} onClick={() => { setNotice(null); setPayFor({}); }}>Record payment</Button>
-          </div>
-        )
-      }
-    >
-      <Button variant="ghost" size="sm" onClick={() => router.push(from === "defaulters" ? "/coaching/fees?tab=reports" : from === "payments" ? "/coaching/fees?tab=payments" : "/coaching/fees?tab=assignments")} style={{ marginBottom: 16 }}>
-        ← Back
-      </Button>
+    <>
+      {/* The write actions used to be the page header's `action` slot. As a tab
+          they live at the top of the panel, so the profile header can keep
+          showing who the student is rather than what can be billed to them. */}
+      {ledger && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginBottom: 16 }}>
+          <Button variant="secondary" onClick={() => setAdjustPreset({ type: "waiver" })}>Add adjustment</Button>
+          <Button variant="app" icon={<Icon name="wallet" size={16} />} onClick={() => { setNotice(null); setPayFor({}); }}>Record payment</Button>
+        </div>
+      )}
 
       {error && <p style={{ color: "var(--danger)", fontSize: 13, marginBottom: 16 }}>{error}</p>}
       {notice && (
@@ -470,7 +468,7 @@ function StudentLedgerInner() {
       <ReasonModal prompt={reasonPrompt} onClose={() => setReasonPrompt(null)} />
       <ReceiptModal path={receiptPath} tenant={slug} onClose={() => setReceiptPath(null)} />
       <TaxInvoiceModal path={taxInvoicePath} tenant={slug} onClose={() => setTaxInvoicePath(null)} />
-    </TeacherShell>
+    </>
   );
 }
 
@@ -550,20 +548,4 @@ function SectionHead({ title, count }: { title: string; count?: number }) {
 
 function Empty({ text }: { text: string }) {
   return <div className="gv-card" style={{ padding: 24, textAlign: "center", color: "var(--text-muted)", fontSize: 13.5, marginBottom: 28 }}>{text}</div>;
-}
-
-export default function StudentLedgerPage() {
-  return (
-    <Suspense fallback={<PageLoading />}>
-      <StudentLedgerInner />
-    </Suspense>
-  );
-}
-
-function PageLoading() {
-  return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, color: "var(--text-muted)" }}>
-      Loading…
-    </div>
-  );
 }

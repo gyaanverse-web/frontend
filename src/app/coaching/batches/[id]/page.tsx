@@ -389,14 +389,21 @@ function BatchDetailInner() {
   // Owner and assigned teachers see the roster; only the owner acts on it.
   const canViewRoster = isOwner || role === "teacher";
 
+  // The name opens the student's profile. A button on the cell rather than
+  // `onRowClick`, because the Pending and Rejected rows carry Approve/Reject
+  // controls and a whole-row click would swallow them.
   const studentCell = (s: BatchStudent) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <button
+      type="button"
+      onClick={() => router.push(`/coaching/students/${s.studentId}`)}
+      style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", font: "inherit" }}
+    >
       <Avatar name={s.name} size={28} />
       <div>
         <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-heading)" }}>{s.name}</div>
         <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.email ?? s.phoneNumber ?? "—"}</div>
       </div>
-    </div>
+    </button>
   );
 
   const removeCell = (s: BatchStudent) =>
@@ -489,12 +496,24 @@ function BatchDetailInner() {
             {batch.teachers.length === 0 ? (
               <Badge tone="warning">No teacher assigned</Badge>
             ) : (
-              batch.teachers.map((t) => (
-                <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-body)" }}>
-                  <Avatar name={t.name} size={22} />
-                  {t.name}
-                </span>
-              ))
+              batch.teachers.map((t) =>
+                isOwner ? (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => router.push(`/coaching/teachers/${t.id}`)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-body)", background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit" }}
+                  >
+                    <Avatar name={t.name} size={22} />
+                    {t.name}
+                  </button>
+                ) : (
+                  <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-body)" }}>
+                    <Avatar name={t.name} size={22} />
+                    {t.name}
+                  </span>
+                ),
+              )
             )}
           </div>
           {isOwner && <Button variant="secondary" size="sm" onClick={openTeachers}>Manage teachers</Button>}
