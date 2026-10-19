@@ -50,6 +50,11 @@ describe("buildAppNav", () => {
       const teachers = links("coaching_owner").find((e) => e.key === "teachers");
       expect(teachers).toMatchObject({ label: "Teachers", href: "/coaching/teachers" });
     });
+
+    it('labels the students link "Students" (owner sees everyone)', () => {
+      const students = links("coaching_owner").find((e) => e.key === "students");
+      expect(students).toMatchObject({ label: "Students", href: "/coaching/students" });
+    });
   });
 
   describe("teacher", () => {
@@ -68,7 +73,13 @@ describe("buildAppNav", () => {
 
     it("still gets the shared staff surfaces", () => {
       const k = keys("teacher");
-      expect(k).toEqual(expect.arrayContaining(["dashboard", "batches", "exams", "question-bank", "members"]));
+      expect(k).toEqual(expect.arrayContaining(["dashboard", "batches", "students", "exams", "question-bank", "members"]));
+    });
+
+    it('labels the students link "My Students" (narrowed to their batches)', () => {
+      // The API narrows the list to students approved in a batch this teacher is
+      // assigned to, so an unqualified "Students" would overpromise.
+      expect(labelFor("teacher", "students")).toBe("My Students");
     });
   });
 

@@ -6,6 +6,7 @@ export type IconName =
   | "file-text"
   | "users"
   | "user-check"
+  | "user-round"
   | "chart-column"
   | "sparkles"
   | "settings"
@@ -54,6 +55,12 @@ const PATHS: Record<string, React.ReactNode> = {
       <path d="M10 9H8" />
       <path d="M16 13H8" />
       <path d="M16 17H8" />
+    </>
+  ),
+  "user-round": (
+    <>
+      <circle cx="12" cy="8" r="5" />
+      <path d="M20 21a8 8 0 0 0-16 0" />
     </>
   ),
   users: (

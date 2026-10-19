@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import type { Member, Tenant } from "../types";
 import { sh, cell, btnS, btnD, memberRoleBadge } from "../styles";
@@ -8,6 +9,7 @@ import { sh, cell, btnS, btnD, memberRoleBadge } from "../styles";
 type Props = { tenant: Tenant; isOwner: boolean };
 
 export function MembersSection({ tenant, isOwner }: Props) {
+  const router = useRouter();
   const [members, setMembers]     = useState<Member[]>([]);
   const [loading, setLoading]     = useState(false);
   const [error, setError]         = useState("");
@@ -82,7 +84,19 @@ export function MembersSection({ tenant, isOwner }: Props) {
               <tbody>
                 {visible.map(m => (
                   <tr key={m.userId}>
-                    <td style={cell}>{m.name}</td>
+                    <td style={cell}>
+                      {isOwner && m.role !== "coaching_owner" ? (
+                        <button
+                          type="button"
+                          onClick={() => router.push(m.role === "teacher" ? `/coaching/teachers/${m.userId}` : `/coaching/students/${m.userId}`)}
+                          style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--accent)", cursor: "pointer", textAlign: "left" }}
+                        >
+                          {m.name}
+                        </button>
+                      ) : (
+                        m.name
+                      )}
+                    </td>
                     <td style={cell}>
                       <span style={{ ...memberRoleBadge(m.role), padding: "3px 10px", fontSize: "11px", fontWeight: "bold", borderRadius: "var(--radius-pill)" }}>
                         {m.role === "coaching_owner" ? "Owner" : m.role.charAt(0).toUpperCase() + m.role.slice(1)}

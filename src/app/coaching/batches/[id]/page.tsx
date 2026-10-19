@@ -7,9 +7,10 @@ import { buildTenantUrl } from "@/lib/tenantUrl";
 import { useTenantSession } from "@/lib/useTenantSession";
 import { useUrlState } from "@/lib/useUrlState";
 import { TeacherShell } from "@/components/dashboard/TeacherShell";
-import { Badge, Button, DataTable, Tabs, Avatar, Switch, Input, Modal } from "@/components/ui";
+import { Badge, Button, DataTable, Tabs, Avatar, Switch, Input, Modal, Icon } from "@/components/ui";
 import type { Column, BadgeTone } from "@/components/ui";
 import { TeacherPicker, type TeacherOption } from "../TeacherPicker";
+import { StudentPicker, type StudentOption } from "../StudentPicker";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -108,6 +109,14 @@ function BatchDetailInner() {
   // students
   const [students, setStudents] = useState<BatchStudent[]>([]);
   const [studentsError, setStudentsError] = useState("");
+  // add students (owner picks from the coaching's own roster — the main flow)
+  const [addOpen, setAddOpen] = useState(false);
+  const [coachingStudents, setCoachingStudents] = useState<StudentOption[]>([]);
+  const [coachingStudentsLoading, setCoachingStudentsLoading] = useState(false);
+  const [addDraft, setAddDraft] = useState<string[]>([]);
+  const [addingStudents, setAddingStudents] = useState(false);
+  const [addErr, setAddErr] = useState("");
+  const [addNote, setAddNote] = useState("");
   // `?roster=pending` — approving joiners is a repeated task, so the tab that
   // holds them has to still be there after the page reloads.
   const [rosterStatus, setRosterStatus] = useUrlState("roster", ROSTER_STATUSES, "approved");
@@ -303,6 +312,47 @@ function BatchDetailInner() {
     }
   }
 
+  async function openAddStudents() {
+    if (!tenant) return;
+    setAddDraft([]); setAddErr(""); setAddNote(""); setAddOpen(true);
+    // Loaded fresh on every open: a student who joined the coaching a minute
+    // ago should be pickable without a page reload.
+    setCoachingStudentsLoading(true);
+    try {
+      const data = await api.get<{ members: StudentOption[] }>("/tenant/members?role=student", { tenant: tenant.slug });
+      setCoachingStudents(data.members);
+    } catch (err) {
+      setAddErr(err instanceof Error ? err.message : "Failed to load the coaching's students");
+    } finally {
+      setCoachingStudentsLoading(false);
+    }
+  }
+
+  async function handleAddStudents() {
+    if (!tenant || addDraft.length === 0) return;
+    setAddErr(""); setAddingStudents(true);
+    try {
+      const res = await api.post<{ added: string[]; alreadyEnrolled: string[] }>(
+        `/tenant/classes/${batchId}/students`,
+        { studentIds: addDraft },
+        { tenant: tenant.slug },
+      );
+      await loadStudents(tenant.slug, batchId);
+      setAddOpen(false);
+      const n = res.added.length;
+      setAddNote(
+        `${n} student${n !== 1 ? "s" : ""} added.` +
+        (res.alreadyEnrolled.length ? ` ${res.alreadyEnrolled.length} already on the roster.` : ""),
+      );
+      // The roster tab the new rows landed on, so the owner sees the result.
+      setRosterStatus("approved");
+    } catch (err) {
+      setAddErr(err instanceof Error ? err.message : "Failed to add students");
+    } finally {
+      setAddingStudents(false);
+    }
+  }
+
   // ── Derived ───────────────────────────────────────────────────────────────
 
   const counts = useMemo(() => ({
@@ -316,11 +366,13 @@ function BatchDetailInner() {
     [students, rosterStatus],
   );
 
-  // Sharing a code is the one join-code job done often, so it stays one click
-  // away in the header; creating/revoking them lives in Batch settings.
-  const activeJoinCode = joinCodes.find(
-    (jc) => !jc.revoked && jc.usedCount < jc.maxUses && (jc.expiresAt === null || new Date(jc.expiresAt) > new Date()),
-  );
+  // Students of this coaching who aren't on the roster at all. A rejected
+  // applicant is deliberately excluded — re-admitting them is the Rejected
+  // tab's job, not a silent side effect of the picker.
+  const addableStudents = useMemo(() => {
+    const onRoster = new Set(students.map((s) => s.studentId));
+    return coachingStudents.filter((s) => !onRoster.has(s.userId));
+  }, [coachingStudents, students]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -337,14 +389,21 @@ function BatchDetailInner() {
   // Owner and assigned teachers see the roster; only the owner acts on it.
   const canViewRoster = isOwner || role === "teacher";
 
+  // The name opens the student's profile. A button on the cell rather than
+  // `onRowClick`, because the Pending and Rejected rows carry Approve/Reject
+  // controls and a whole-row click would swallow them.
   const studentCell = (s: BatchStudent) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+    <button
+      type="button"
+      onClick={() => router.push(`/coaching/students/${s.studentId}`)}
+      style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", padding: 0, cursor: "pointer", textAlign: "left", font: "inherit" }}
+    >
       <Avatar name={s.name} size={28} />
       <div>
         <div style={{ fontWeight: 600, fontSize: 13, color: "var(--text-heading)" }}>{s.name}</div>
         <div style={{ fontSize: 11, color: "var(--text-muted)" }}>{s.email ?? s.phoneNumber ?? "—"}</div>
       </div>
-    </div>
+    </button>
   );
 
   const removeCell = (s: BatchStudent) =>
@@ -407,9 +466,11 @@ function BatchDetailInner() {
             </div>
           </div>
           <div style={{ flex: 1 }} />
-          {isOwner && activeJoinCode && (
-            <Button variant="ghost" size="sm" onClick={() => copyJoinLink(activeJoinCode)}>
-              {copiedJcId === activeJoinCode.id ? "Copied!" : `Copy join link · ${activeJoinCode.code}`}
+          {/* Filling the batch from the coaching's own roster is the main flow.
+              Join codes are the alternative, and live in Batch settings. */}
+          {isOwner && (
+            <Button variant="app" size="sm" icon={<Icon name="plus" size={15} />} onClick={openAddStudents}>
+              Add students
             </Button>
           )}
           {isOwner && <Button variant="secondary" size="sm" onClick={() => { setConfirmDelete(false); setEditOpen(true); }}>Batch settings</Button>}
@@ -420,6 +481,13 @@ function BatchDetailInner() {
         <p style={{ color: "var(--danger)", fontSize: 13, marginBottom: 16, padding: "10px 14px", border: "1px solid rgba(244,63,94,0.35)", background: "var(--danger-soft)", borderRadius: "var(--radius-md)" }}>{pageError}</p>
       )}
 
+      {addNote && (
+        <p style={{ margin: "0 0 16px", display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-body)", fontFamily: "var(--font-body)", padding: "10px 14px", border: "1px solid var(--success)", background: "var(--success-soft)", borderRadius: "var(--radius-md)" }}>
+          <Icon name="check-circle" size={16} />
+          {addNote}
+        </p>
+      )}
+
       {/* Teachers — visible to staff; the owner assigns */}
       {canViewRoster && (
         <div className="gv-card" style={{ padding: "14px 20px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
@@ -428,12 +496,24 @@ function BatchDetailInner() {
             {batch.teachers.length === 0 ? (
               <Badge tone="warning">No teacher assigned</Badge>
             ) : (
-              batch.teachers.map((t) => (
-                <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-body)" }}>
-                  <Avatar name={t.name} size={22} />
-                  {t.name}
-                </span>
-              ))
+              batch.teachers.map((t) =>
+                isOwner ? (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => router.push(`/coaching/teachers/${t.id}`)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-body)", background: "none", border: "none", padding: 0, cursor: "pointer", font: "inherit" }}
+                  >
+                    <Avatar name={t.name} size={22} />
+                    {t.name}
+                  </button>
+                ) : (
+                  <span key={t.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--text-body)" }}>
+                    <Avatar name={t.name} size={22} />
+                    {t.name}
+                  </span>
+                ),
+              )
             )}
           </div>
           {isOwner && <Button variant="secondary" size="sm" onClick={openTeachers}>Manage teachers</Button>}
@@ -453,7 +533,16 @@ function BatchDetailInner() {
           {studentsError ? (
             <div style={{ padding: 20, fontSize: 13, color: "var(--danger)" }}>{studentsError}</div>
           ) : visibleStudents.length === 0 ? (
-            <div style={{ padding: 28, fontSize: 13, color: "var(--text-muted)", textAlign: "center" }}>No {rosterTab.toLowerCase()} students.</div>
+            <div style={{ padding: 28, textAlign: "center" }}>
+              <p style={{ margin: 0, fontSize: 13, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+                No {rosterTab.toLowerCase()} students.
+              </p>
+              {isOwner && rosterStatus === "approved" && (
+                <Button variant="app" size="sm" icon={<Icon name="plus" size={15} />} style={{ marginTop: 14 }} onClick={openAddStudents}>
+                  Add students
+                </Button>
+              )}
+            </div>
           ) : (
             <DataTable columns={columns} rows={visibleStudents} maxHeight={560} style={{ border: "none", borderRadius: 0 }} />
           )}
@@ -568,6 +657,30 @@ function BatchDetailInner() {
                 )}
               </div>
           </div>
+      </Modal>
+
+      {/* Add students modal — owner only */}
+      <Modal open={isOwner && addOpen} onClose={() => setAddOpen(false)} title="Add students to this batch" width={520}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <p style={{ margin: 0, fontSize: 12.5, color: "var(--text-muted)", fontFamily: "var(--font-body)" }}>
+            Pick students who are already in your coaching. They&apos;re enrolled straight away — no
+            join code and no approval step — and are notified.
+          </p>
+          <StudentPicker
+            options={addableStudents}
+            value={addDraft}
+            onChange={setAddDraft}
+            disabled={addingStudents}
+            loading={coachingStudentsLoading}
+          />
+          {addErr && <p style={{ margin: 0, color: "var(--danger)", fontSize: 13 }}>{addErr}</p>}
+          <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <Button type="button" variant="ghost" onClick={() => setAddOpen(false)}>Cancel</Button>
+            <Button type="button" variant="app" disabled={addingStudents || addDraft.length === 0} onClick={handleAddStudents}>
+              {addingStudents ? "Adding…" : addDraft.length > 0 ? `Add ${addDraft.length} student${addDraft.length !== 1 ? "s" : ""}` : "Add students"}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Teachers modal — owner only */}

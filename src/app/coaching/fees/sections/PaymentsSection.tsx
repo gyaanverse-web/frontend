@@ -68,7 +68,7 @@ export function PaymentsSection({ tenantSlug }: Props) {
   }
 
   const openLedger = (r: PaymentListItem) =>
-    router.push(`/coaching/fees/students/${r.studentId}?name=${encodeURIComponent(r.studentName)}&from=payments`);
+    router.push(`/coaching/students/${r.studentId}?tab=Fees`);
 
   const columns: Column<PaymentListItem>[] = [
     {
@@ -175,7 +175,7 @@ function StudentPicker({ tenantSlug, onClose }: { tenantSlug: string; onClose: (
     e.preventDefault();
     const s = students?.find((x) => x.studentId === studentId);
     if (!s) return;
-    router.push(`/coaching/fees/students/${s.studentId}?name=${encodeURIComponent(s.name)}&from=payments&action=pay`);
+    router.push(`/coaching/students/${s.studentId}?tab=Fees&action=pay`);
   }
 
   return (
