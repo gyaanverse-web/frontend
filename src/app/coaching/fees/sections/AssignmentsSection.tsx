@@ -121,7 +121,7 @@ export function AssignmentsSection({ tenantSlug }: Props) {
           columns={columns}
           rows={rows}
           fixed
-          onRowClick={(r) => router.push(`/coaching/fees/students/${r.studentId}?name=${encodeURIComponent(r.studentName)}`)}
+          onRowClick={(r) => router.push(`/coaching/students/${r.studentId}?tab=Fees`)}
         />
       )}
     </div>

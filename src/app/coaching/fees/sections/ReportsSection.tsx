@@ -207,7 +207,7 @@ function DefaultersReportView({ tenantSlug }: Props) {
           ) : (
             <>
               <DataTable columns={columns} rows={data.items.map((r) => ({ ...r, id: r.studentId }))} fixed
-                onRowClick={(r) => router.push(`/coaching/fees/students/${r.studentId}?name=${encodeURIComponent(r.name)}&from=defaulters`)} />
+                onRowClick={(r) => router.push(`/coaching/students/${r.studentId}?tab=Fees`)} />
               {data.nextCursor && (
                 <div style={{ textAlign: "center", marginTop: 14 }}>
                   <Button variant="secondary" size="sm" onClick={loadMore} disabled={loadingMore}>{loadingMore ? "Loading…" : "Load more"}</Button>
