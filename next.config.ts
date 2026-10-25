@@ -32,6 +32,53 @@ const commitSha =
 const commitRef =
   process.env.VERCEL_GIT_COMMIT_REF || fromGit("rev-parse --abbrev-ref HEAD");
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Deployed-build environment guard.
+//
+// `lib/api.ts` falls back to `http://localhost:8000` when NEXT_PUBLIC_API_URL
+// is unset. That is correct on a laptop and catastrophic in a deployed build,
+// because NEXT_PUBLIC_* values are INLINED at build time: the artifact would
+// ship telling every visitor's browser to call port 8000 on their own machine.
+// Nothing about that fails loudly — the site renders, and every API call dies
+// in the network tab — so it has to be caught here, at build time, where the
+// mistake is still cheap.
+//
+// Vercel sets VERCEL_ENV on any deployed build. A local `next build` has it
+// unset and keeps the localhost fallback, so this never gets in the way of
+// building on a laptop.
+// ─────────────────────────────────────────────────────────────────────────────
+const deployedEnv = process.env.VERCEL_ENV;
+const isDeployedBuild = deployedEnv === "production" || deployedEnv === "preview";
+
+if (!process.env.NEXT_PUBLIC_API_URL) {
+  if (isDeployedBuild) {
+    throw new Error(
+      `NEXT_PUBLIC_API_URL is not set for this ${deployedEnv} build. ` +
+        "The bundle would be built with the http://localhost:8000 dev fallback " +
+        "baked in and every API call from the browser would fail. Set it in the " +
+        "Vercel project's environment variables for this environment, then redeploy.",
+    );
+  }
+  console.warn(
+    "  next.config.ts: NEXT_PUBLIC_API_URL is unset — using the " +
+      "http://localhost:8000 dev fallback. Fine locally; this would throw on Vercel.",
+  );
+}
+
+// The tenant model depends on these two just as hard (see lib/domain.ts: with
+// no root domain configured, `staging` would be parsed as a tenant slug). They
+// only warn rather than throw because, unlike the API URL, a wrong value here
+// degrades instead of breaking outright — promote to a throw once the Vercel
+// project is confirmed to set both.
+for (const key of ["NEXT_PUBLIC_APP_ROOT_DOMAIN", "NEXT_PUBLIC_APP_HOST"]) {
+  if (isDeployedBuild && !process.env[key]) {
+    console.warn(
+      `  next.config.ts: ${key} is unset for this ${deployedEnv} build — ` +
+        "tenant subdomain resolution will fall back to dev behaviour.",
+    );
+  }
+}
+
 const nextConfig: NextConfig = {
   // Pin the workspace root to this directory. Without this, Turbopack scans
   // upward for lockfiles and can lock onto an unrelated one sitting in a

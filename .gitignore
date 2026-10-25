@@ -42,3 +42,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Scratch tokens captured while testing the auth flows by hand.
+rt.txt
+*.token.txt
