@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="Gyaanverse">
+  <!-- Brand mark: a geometric "G" monogram in electric royal blue (the
+       blue-600 token, #2B50F5) on white, the one accent the design system
+       allows. The ring is a single dashed circle rather than a text glyph so
+       the letter's opening stays exact at 16px, where a font-rendered letter
+       would be at the mercy of a webfont that favicons never get to load. -->
+  <rect width="32" height="32" rx="7" fill="#2B50F5"/>
+  <circle cx="16" cy="16" r="7.5" fill="none" stroke="#fff" stroke-width="3.4"
+          stroke-dasharray="43.85 3.28"/>
+  <path d="M16.4 16h7.1" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round"/>
+</svg>
