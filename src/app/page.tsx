@@ -5,11 +5,10 @@ import {
   Badge,
   Card,
   PlanCard,
-  Avatar,
   AIEvaluationCard,
-  Logo,
 } from "@/components/ui";
 import { HomeNav } from "@/components/marketing/HomeNav";
+import { SiteFooter } from "@/components/marketing/SiteFooter";
 import styles from "./page.module.css";
 
 export const metadata: Metadata = {
@@ -35,10 +34,10 @@ const EVAL_MISTAKE =
 const EVAL_ALT =
   "Correct answer: −x cos(x) + sin(x) + C. The DI (tabular) method reaches the same result faster.";
 
-const HERO_STATS = [
-  { value: "800+", label: "Institutes" },
-  { value: "50,000+", label: "Students" },
-  { value: "99.9%", label: "Uptime" },
+const HERO_CLAIMS = [
+  { value: "AI-graded", label: "Step-level evaluation" },
+  { value: "Multi-batch", label: "Built for institutes" },
+  { value: "Fee-ready", label: "Collections automated" },
 ];
 
 const AI_POINTS = [
@@ -81,24 +80,21 @@ const FEATURES = [
   },
 ];
 
-const TESTIMONIALS = [
+const BENEFITS = [
   {
-    quote:
-      "Gyaanverse completely transformed how we run exams. The AI evaluation alone saves our teachers 8 hours every week.",
-    name: "Anil Sharma",
-    org: "Sharma Classes, Kota",
+    eyebrow: "For teachers",
+    title: "Stop grading by hand",
+    body: "Scanned answer sheets go through step-level AI evaluation. Teachers review and override what the engine flags instead of marking every paper from scratch.",
   },
   {
-    quote:
-      "We went from 40 to 280 students in 6 months. The public mock marketplace drives most of our organic discovery now.",
-    name: "Rajesh Kumar",
-    org: "K.R. Tutorial Institute, Delhi",
+    eyebrow: "For owners",
+    title: "One place for batches and fees",
+    body: "Batches, students, teachers, fee structures, invoices and receipts live in the same system — no spreadsheet reconciliation between a test tool and an accounts register.",
   },
   {
-    quote:
-      "The fee automation alone was worth switching. No more WhatsApp reminders — the platform handles collections automatically.",
-    name: "Dr. Priya Mehta",
-    org: "Apex Academy, Mumbai",
+    eyebrow: "For students",
+    title: "Feedback that names the mistake",
+    body: "Instead of a score and a red cross, students see which step went wrong, why it went wrong, and a correct method they can follow.",
   },
 ];
 
@@ -214,7 +210,7 @@ export default function Home() {
                 borderBottom: "1px solid var(--border-light)",
               }}
             >
-              {HERO_STATS.map((s) => (
+              {HERO_CLAIMS.map((s) => (
                 <div key={s.label}>
                   <div
                     style={{
@@ -359,9 +355,9 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── TESTIMONIALS ───────────────────────────────────────────────── */}
+      {/* ── WHY GYAANVERSE ────────────────────────────────────────────── */}
       <section
-        id="customers"
+        id="why"
         className={styles.section}
         style={{ background: "#fff", borderTop: "1px solid var(--border-light)" }}
       >
@@ -378,59 +374,30 @@ export default function Home() {
               alignItems: "center",
             }}
           >
-            <Eyebrow chip>Customers</Eyebrow>
+            <Eyebrow chip>Why Gyaanverse</Eyebrow>
             <h2 style={{ fontSize: "clamp(28px, 3.5vw, 40px)" }}>
-              Trusted by <span className="gv-em">coaching institutes</span> across India.
+              Built for how <span className="gv-em">Indian coaching</span> actually runs.
             </h2>
           </div>
 
           <div className={styles.cards3}>
-            {TESTIMONIALS.map((t) => (
-              <Card key={t.name} padding={28}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  <p
+            {BENEFITS.map((b) => (
+              <Card key={b.title} padding={28}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                  <Eyebrow>{b.eyebrow}</Eyebrow>
+                  <h3
                     style={{
-                      fontSize: 16,
-                      lineHeight: 1.7,
+                      fontSize: 20,
+                      lineHeight: 1.3,
+                      letterSpacing: "-0.02em",
                       color: "var(--text-heading)",
-                      fontStyle: "italic",
                     }}
                   >
-                    &ldquo;{t.quote}&rdquo;
+                    {b.title}
+                  </h3>
+                  <p style={{ fontSize: 15, lineHeight: 1.7, color: "var(--text-body)" }}>
+                    {b.body}
                   </p>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      paddingTop: 14,
-                      borderTop: "1px solid var(--border-light)",
-                    }}
-                  >
-                    <Avatar name={t.name} size={36} />
-                    <div>
-                      <div
-                        style={{
-                          fontFamily: "var(--font-body)",
-                          fontWeight: 600,
-                          fontSize: 14,
-                          color: "var(--text-heading)",
-                        }}
-                      >
-                        {t.name}
-                      </div>
-                      <div
-                        style={{
-                          fontFamily: "var(--font-body)",
-                          fontSize: 12,
-                          color: "var(--text-muted)",
-                          marginTop: 2,
-                        }}
-                      >
-                        {t.org}
-                      </div>
-                    </div>
-                  </div>
                 </div>
               </Card>
             ))}
@@ -515,55 +482,8 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ── FOOTER ─────────────────────────────────────────────────────── */}
-      <footer
-        className="theme-dark"
-        style={{
-          background: "var(--navy-900)",
-          padding: "40px",
-          borderTop: "1px solid rgba(255,255,255,0.08)",
-        }}
-      >
-        <div
-          className={styles.container}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 20,
-            flexWrap: "wrap",
-          }}
-        >
-          <Logo size={20} onDark />
-          <span style={{ fontFamily: "var(--font-body)", fontSize: 13, color: "var(--text-muted)" }}>
-            © {new Date().getFullYear()} Gyaanverse. All rights reserved.
-          </span>
-          <div style={{ flex: 1 }} />
-          <div style={{ display: "flex", gap: 22, flexWrap: "wrap" }}>
-            <a href="#features" style={footerLink}>
-              Features
-            </a>
-            <a href="#ai" style={footerLink}>
-              AI Analysis
-            </a>
-            <a href="#pricing" style={footerLink}>
-              Pricing
-            </a>
-            <Link href="/login" style={footerLink}>
-              Login
-            </Link>
-            <Link href="/register" style={footerLink}>
-              Get Started
-            </Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
 
-const footerLink: React.CSSProperties = {
-  fontFamily: "var(--font-body)",
-  fontSize: 13,
-  color: "var(--text-body-on-dark)",
-  textDecoration: "none",
-};
