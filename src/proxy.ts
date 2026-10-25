@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { shouldNoindex } from "@/lib/seo";
 
 /**
  * In dev, every page request to bare `localhost` or bare `lvh.me` is
@@ -31,7 +32,22 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(url, 307);
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+
+  // `robots.txt` stops a well-behaved crawler fetching a page; it does NOT stop
+  // the URL being indexed when something links to it. `X-Robots-Tag` is the
+  // half that actually removes it from the index, so both are set.
+  //
+  // It is applied here rather than as route metadata because only two of the
+  // 44 routes have a layout to hang `export const metadata` on, and most of
+  // the pages are client components, which cannot export metadata at all. One
+  // header in the middleware covers every route, every host and every response
+  // type, and cannot be forgotten when the next page is added.
+  if (shouldNoindex(host, request.nextUrl.pathname)) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
+
+  return response;
 }
 
 // Skip Next.js internals so HMR / static assets aren't redirected.

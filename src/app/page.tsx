@@ -20,6 +20,11 @@ export const metadata: Metadata = {
     description:
       "Host batches, automate fees, run AI-powered exams, and analyze performance. Built for Indian coaching institutes.",
     type: "website",
+    // Restated because a page-level `openGraph` replaces the root layout's
+    // object outright rather than merging field by field.
+    siteName: "Gyaanverse",
+    locale: "en_IN",
+    url: "/",
   },
 };
 
