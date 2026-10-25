@@ -10,7 +10,7 @@ const NAV_LINKS = [
   { href: "#features", label: "Features" },
   { href: "#ai", label: "AI Analysis" },
   { href: "#pricing", label: "Pricing" },
-  { href: "#customers", label: "Customers" },
+  { href: "#why", label: "Why Gyaanverse" },
 ];
 
 const linkStyle: React.CSSProperties = {
